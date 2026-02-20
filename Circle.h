@@ -8,6 +8,7 @@
 #include "Utilities.h"
 
 
+
 struct Circle {
     // a is semi-major (horizontal) axis, b is semi-minor (vertical) axis
     Circle(const V2<int>& position, int a, int b, int radius = 0, Value value = 0) : position{ position }, a{ a }, b{ b }, radius{ radius }, value{ value }, id{ CircleCount() } {}
