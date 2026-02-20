@@ -23,8 +23,8 @@ public:
         return grid[idx];
     }
 
-    template <typename T, is_number<T> = true>
-    T operator[](std::size_t idx) const {
+    template <typename U, is_number<U> = true>
+    U operator[](std::size_t idx) const {
         return grid[idx];
     }
 
@@ -36,8 +36,8 @@ public:
         return grid[size.x * position.y + position.x];
     }
 
-    template <typename T, is_number<T> = true>
-    T operator[](const V2<int>& position) const {
+    template <typename U, is_number<U> = true>
+    U operator[](const V2<int>& position) const {
         return grid[size.x * position.y + position.x];
     }
 

@@ -1,6 +1,7 @@
 #pragma once
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 #include <numbers>
 #include <unordered_set>
 #include "V2.h"
