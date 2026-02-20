@@ -6,6 +6,8 @@
             "command": "C:/msys64/mingw64/bin/g++.exe",
             "args": [
                 "-fdiagnostics-color=always",
+                "-std=gnu++20",
+                "-O0",
                 "-g",
                 "${file}",
                 "-o",
