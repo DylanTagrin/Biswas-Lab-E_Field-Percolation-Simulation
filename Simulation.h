@@ -1275,17 +1275,17 @@ public:
         }
     }
 
-    void RelaxGrid(const V2<int>& size, Grid<Value>& grid, bool forces_circles) {
+    void RelaxGrid(const V2<int>& size, Grid<Value>& grid, bool forces_circles) {   // Function for relaxing grid; updates grid values based on average of 8 surrounding points; also updates circle positions if forces_circles is true
         auto old_grid = grid;
         #pragma omp parallel for
         for (auto i = 1; i < size.x - 1; ++i) {
             auto x_last = i - 1;
             auto x_next = i + 1;
             for (auto j = 1; j < size.y - 1; ++j) {
-                auto y_part = size.x * j;
+                auto y_part = size.x * j;   // y_part is the starting index of the jth row, reminder grid is a 1D array so to access (i,j) we need to do y_part + i
                 auto y_index_minus = y_part - size.x;
                 auto y_index_plus = y_part + size.x;
-                grid[y_part + i] = (
+                grid[y_part + i] = (    // average of 8 surrounding points
                       old_grid[y_index_minus + x_last]
                     + old_grid[y_index_minus + i]
                     + old_grid[y_index_minus + x_next]
