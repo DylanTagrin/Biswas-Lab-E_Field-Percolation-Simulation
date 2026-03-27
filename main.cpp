@@ -9,6 +9,7 @@
 
 int main() {
 
+    // Initialize Simulation with grid size (800, 600)
     Simulation sim(V2<int>{ 800, 600 });
 
     // WARNING: IF DIFFERENT SHAPE IS USED (I.E. NEEDLE VS TRIANGLE VS RECTANGLE), CODE WILL HAVE TO BE ADAPTED IN Simulation.h (and other
@@ -18,6 +19,7 @@ int main() {
 
     // --------------------> note that first two points form straight edge of needle! <--------------
     
+    // Add needles (electrodes) to the simulation with specified vertices and values
     sim.AddNeedle(Needle({ 0, 74 }, { 0, 524 }, { 299, 299 }, 50));
     sim.AddNeedle(Needle({ 799, 74 }, { 799, 524 }, { 499, 299 }, -50));
     
