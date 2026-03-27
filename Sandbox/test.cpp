@@ -1,3 +1,5 @@
+// The main purpose of this file is to test specific aspects of the simulation
+
 #include <iostream>
 #include <numbers>
 #include <iomanip> // Optional: for setting precision
