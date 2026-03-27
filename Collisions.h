@@ -2,6 +2,8 @@
 #include "V2.h"
 #include "Circle.h"
 #include "Rectangle.h"
+#include "Triangle.h"
+#include "Needle.h"
 
 inline bool PointVsRectangle(const V2<int>& point, const Rectangle& rectangle) {
     if (point.x < rectangle.position.x || point.x > rectangle.position.x + rectangle.size.x) return false;
@@ -11,18 +13,119 @@ inline bool PointVsRectangle(const V2<int>& point, const Rectangle& rectangle) {
 
 inline bool PointVsCircle(const V2<int>& point, const Circle& circle) {
     auto distance = point - circle.position;
-    return distance.x * distance.x + distance.y * distance.y <= circle.radius * circle.radius;
+    auto alpha = static_cast<double>(distance.x * distance.x) / static_cast<double>(circle.a * circle.a);
+    auto beta = static_cast<double>(distance.y * distance.y) / static_cast<double>(circle.b * circle.b);
+    return ((alpha + beta) <= 1);
 }
 
 inline bool PointVsCirclePerimeter(const V2<int>& point, const Circle& circle) {
     auto distance = point - circle.position;
-    return distance.x * distance.x + distance.y * distance.y == circle.radius * circle.radius;
+    auto alpha = static_cast<double>(distance.x * distance.x) / static_cast<double>(circle.a * circle.a);
+    auto beta = static_cast<double>(distance.y * distance.y) / static_cast<double>(circle.b * circle.b);
+    return alpha + beta == 1;
 }
 
 inline bool CircleVsCircle(const Circle& A, const Circle& B) {
-    double r = A.radius + B.radius;
-    r *= r;
-    return r >= (A.position - B.position).MagnitudeSquared();
+    std::vector<V2<int>> perim = A.GetPerimeterPoints();
+    for (auto p : perim) {
+        if (PointVsCircle(p, B)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+inline bool CircleVsTriangle(const Circle& A, const Triangle& tri) {
+    for (auto& p : tri.points) {
+        if (PointVsCircle(p, A)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+inline bool CircleVsNeedle(const Circle& A, const Needle& needle) {
+    for (auto& p : needle.points) {
+        if (PointVsCircle(p, A)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+inline V2<int> ClosestPointOnTriangle(const Circle& A, const Triangle& tri) {
+    double sq_dist = 9999;
+    V2<int> closest_point;
+    for (auto& P : tri.edge_points) {
+        auto dif = P - A.position;
+        if ((dif.x * dif.x) + (dif.y * dif.y) < sq_dist) {
+            sq_dist = (dif.x * dif.x) + (dif.y * dif.y);
+            closest_point = P;
+        }
+    }
+    return closest_point;
+}
+
+inline V2<int> ClosestPointOnNeedle(const Circle& A, const Needle& needle) {
+    double sq_dist = 10E5;
+    V2<int> closest_point;
+    for (auto& P : needle.edge_points) {
+        auto dif = P - A.position;
+        auto dif_mag = (dif.x * dif.x) + (dif.y * dif.y);
+        if (dif_mag < sq_dist) {
+            sq_dist = (dif.x * dif.x) + (dif.y * dif.y);
+            closest_point = P;
+        }
+    }
+    return closest_point;
+}
+
+// Determines if there is interframe collision (prevents circle hopping or 'teleporting')
+inline V2<int> Intersect(const V2<int>& Pf, const V2<int>& Pi, std::vector<V2<int>>& boundary) {
+    auto vect = Pf - Pi;
+    int ticks = 1000;
+    for (int i = 0; i <= ticks; i++) {
+        V2<int> test_coord = Round(i * vect / ticks) + Pi;
+        for (auto& P : boundary) {
+            if (test_coord == P) {
+                return(test_coord);
+            }
+        }
+    }
+    return(Pf);
+}
+
+// determines collision location between ellipses using chain method (identifies coordinate where they touch)
+inline V2<int> ChainIntersect(V2<int>& old_pos, const Circle& A, const std::vector<V2<int>>& boundary) {
+    // returns list containing position of A, position of B, and intersection point
+    auto vect = A.position - old_pos;
+    int ticks = 1000;
+    for (int i = 0; i <= ticks; i++) {
+        V2<int> test_coord = Round(i * vect / ticks) + old_pos;
+        auto perimA = A.GetPerimeterPoints();
+        for (auto& P : perimA) {
+            for (auto& Q : boundary) {
+                if (P == Q) {
+                    return test_coord;
+                }
+            }
+        }
+    }
+    LOG("No suitable intersection found");
+    return { 0,0 };
+}
+
+inline bool EdgeIntersect(std::vector<V2<int>>& A, std::vector<V2<int>>& B) {
+    // returns True if at least one point in A meets one point in B
+    for (auto& P : A) {
+        for (auto& Q : B) {
+            if (P == Q) {
+                //LOG(P);
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 // Computes the square distance between a point p and an AABB b
@@ -41,6 +144,7 @@ inline float SqDistPointAABB(const V2<int>& p, const Rectangle& b) {
     return sqDist;
 }
 
+// If rectangles ever used again, this should be updated to accomodate ellipse definitions (with a, b instead of radius)
 inline bool CircleVsRectangle(const Circle& circle, const Rectangle& b) {
 // Compute squared distance between sphere center and AABB
         float sqDist = SqDistPointAABB(circle.position, b);
@@ -50,6 +154,7 @@ inline bool CircleVsRectangle(const Circle& circle, const Rectangle& b) {
 }
 
 inline V2<int> ClosestPointOnRectangle(const V2<int>& position, const Rectangle& b) {
+    // below does not work inside left electrode
     auto closest_point = position;
     closest_point.x = std::max(closest_point.x, b.position.x);
     closest_point.x = std::min(closest_point.x, b.position.x + b.size.x);

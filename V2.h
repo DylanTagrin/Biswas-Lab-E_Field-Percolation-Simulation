@@ -95,12 +95,12 @@ inline V2<T> operator-(V2<T> lhs, const V2<T>& rhs) {
     return lhs;
 }
 
-template <typename T, typename U, is_number<T> = true>
-V2<typename std::common_type<T, U>::type> operator*(T lhs, const V2<U>& rhs) {
+template <typename A, typename B, is_number<A> = true>
+V2<typename std::common_type<A, B>::type> operator*(A lhs, const V2<B>& rhs) {
     return { lhs * rhs.x, lhs * rhs.y };
 }
-template <typename T, typename U, is_number<T> = true, typename S = typename std::common_type<T, U>::type>
-V2<S> operator/(T lhs, const V2<U>& rhs) {
+template <typename A, typename B, is_number<A> = true, typename S = typename std::common_type<A, B>::type>
+V2<S> operator/(A lhs, const V2<B>& rhs) {
     V2<S> vector;
     if (rhs.x) {
         vector.x = lhs / rhs.x;
@@ -115,12 +115,12 @@ V2<S> operator/(T lhs, const V2<U>& rhs) {
     return vector;
 }
 
-template <typename T, typename U, is_number<U> = true>
-V2<typename std::common_type<T, U>::type> operator*(const V2<T>& lhs, U rhs) {
+template <typename A, typename B, is_number<B> = true>
+V2<typename std::common_type<A, B>::type> operator*(const V2<A>& lhs, B rhs) {
     return { lhs.x * rhs, lhs.y * rhs };
 }
-template <typename T, typename U, is_number<U> = true, typename S = typename std::common_type<T, U>::type>
-V2<S> operator/(const V2<T>& lhs, U rhs) {
+template <typename A, typename B, is_number<B> = true, typename S = typename std::common_type<A, B>::type>
+V2<S> operator/(const V2<A>& lhs, B rhs) {
     V2<S> vector;
     if (rhs) {
         vector.x = lhs.x / rhs;
