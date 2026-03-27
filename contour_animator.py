@@ -1,3 +1,6 @@
+# Note: This code simply will not work on any system but the original creators until further notice
+
+
 from calendar import c
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
