@@ -4,8 +4,6 @@
 //#include "matplotlibcpp.h"
 //namespace plt = matplotlibcpp;
 
-// TO DO
-// Make data file smaller
 
 int main() {
 
@@ -179,10 +177,10 @@ int main() {
     sim.AddCircle(Circle({ 329, 269 }, 15, 15));
 
 
-    sim.Start(10000);
+    sim.Start(10);
 
 
-    auto frames = 20;
+    auto frames = 10;
     auto static_frames = 5;
     for (auto i = 0; i < frames; i++) {
         LOG("Computing frame " << i);
