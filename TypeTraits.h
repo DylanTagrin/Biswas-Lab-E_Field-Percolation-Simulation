@@ -1,7 +1,11 @@
 #pragma once
 #include <type_traits>
 
-// Type traits for compile-time checks, used extensively in V2.h for operator overloading and ensuring type safety
+/* This file provides two functions to confirm object types while creating other functions.
+Type traits for compile-time checks, used extensively in V2.h for operator overloading 
+and ensuring type safety.*/
+
+
 // Enable if T is an arithmetic type (integral or floating-point)
 template <typename T>
 using is_number = std::enable_if_t<std::is_arithmetic_v<T>, bool>;
