@@ -155,7 +155,7 @@ V2<S> operator/(const V2<A>& lhs, B rhs) {
 
 // Function that allows for V2 data to be hashed for an unordered list
 namespace std {
-
+// Hash function from https://ideone.com/tieHbd
 // Custom hashing function for ecs::Entity class.
 // This allows for use of unordered maps and sets with entities as keys.
     template <>

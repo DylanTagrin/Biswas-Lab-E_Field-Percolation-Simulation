@@ -5,6 +5,8 @@
 #include <utility>
 #include "V2.h"
 
+/* This file contrains some utlility functions that can print a container of V2s
+This is not in V2 since its only needed in very specific circumstances and is kinda heavy.*/
 
 inline std::ostream& operator<<(std::ostream& os, const std::vector<V2<int>>& v) {
 	os << "[";
@@ -30,22 +32,3 @@ inline std::ostream& operator<<(std::ostream& os, const std::unordered_set<V2<in
 	return os;
 }
 
-// Hash function from https://ideone.com/tieHbd
-
-//namespace std {
-//
-//// Custom hashing function for ecs::Entity class.
-//// This allows for use of unordered maps and sets with entities as keys.
-//	template <>
-//	struct hash<V2<int>> {
-//		std::size_t operator()(const V2<int>& k) const {
-//			// Hashing combination algorithm from:
-//			// https://stackoverflow.com/a/17017281
-//			std::size_t h = 17;
-//			h = h * 31 + std::hash<int>()(k.x);
-//			h = h * 31 + std::hash<int>()(k.y);
-//			return h;
-//		}
-//	};
-//
-//} // namespace std
