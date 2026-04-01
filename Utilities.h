@@ -5,7 +5,8 @@
 #include <utility>
 #include "V2.h"
 
-/* This file contrains some utlility functions that can print a container of V2s
+/* This file contains some utlility functions that can print a container of V2s
+example: cout << vector<V2<int>>{V2<int>(1,2), V2<int>(3,4)}; will print [(1,2), (3,4)]
 This is not in V2 since its only needed in very specific circumstances and is kinda heavy.*/
 
 inline std::ostream& operator<<(std::ostream& os, const std::vector<V2<int>>& v) {
