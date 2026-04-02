@@ -2,6 +2,10 @@
 #include "V2.h"
 #include "Defines.h"
 
+// Rectangle struct, initilized with a V2 position, V2 size, and float(Value) 'value' which is voltage
+// Note: The constructor argument (ie position) and the member variable (ie position) have the same name
+
+// Rectangle class structure intilized with V2 pos, V2 size, value voltage
 struct Rectangle {
     // note that position is lower left vertex of rectangle and size are dimensions in x, y
     // value is voltage
