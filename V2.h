@@ -12,7 +12,7 @@ stored more efficiently while also providing necessary logic functions.
 Constructed with V2<T> where T is the type of object you want to create.*/
 
 
-// 2D Vector Class Template that is used for multiple 2D objects of different types(T)
+// 2D Vector Class Template intialized with V2<T> a{x, y} for object type <T>; Class contains 2D math
 template <typename T>
 struct V2 {
     // Default values and constructor for when a new class object is created
