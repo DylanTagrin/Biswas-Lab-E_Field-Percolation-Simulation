@@ -8,6 +8,10 @@
 #include "Defines.h"
 #include "Utilities.h"
 
+/* This file contains the cicle class and some key functions. One function of note is the 
+ GetPerimeterPoints() function which uses 1000 iterations, can probably be reduced to something
+ like 200 seeing as most of the circles have a total circumference of ~100 points */
+
 
 /* Class that creates ellipses based on position, a = horizontal radius, b = vertical radius, 
 radius = collision interaction radius, and value = voltage. This class contains positions, velocity,
