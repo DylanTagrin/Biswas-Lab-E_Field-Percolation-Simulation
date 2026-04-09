@@ -177,11 +177,11 @@ int main() {
     sim.AddCircle(Circle({ 329, 269 }, 15, 15));
 
 
-    sim.Start(10);
+    sim.Start(100);
 
 
-    auto frames = 10;
-    auto static_frames = 5;
+    auto frames = 2;
+    auto static_frames = 1;
     for (auto i = 0; i < frames; i++) {
         LOG("Computing frame " << i);
         sim.Update(0.1);
@@ -193,7 +193,7 @@ int main() {
         
     sim.StaticUpdate(static_frames);
 
-    sim.Save("data.json");
+    sim.Save("output/data.json");
 
     LOG("Done!");
 
