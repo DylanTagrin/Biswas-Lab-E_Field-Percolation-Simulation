@@ -17,7 +17,10 @@
 
 /*This file is the main simulation engine and has a lot going on with it.*/
 
-
+/* Simulation constructor with a V2 gridsize input. 
+    Contains data_handler for width, height, timestep, data, and measurements. 
+    Uses "relaxed grid" for holding the potential, initiated at 0.
+    NOTE: Electrode = 0 for triangle, 1 for needle, 2 for rectangle*/
 class Simulation {
 public:
     V2<int> glob_grid_size;
@@ -25,9 +28,9 @@ public:
     std::vector<Value> lf_data;
     /* Simulation constructor with a V2 gridsize input. 
     Contains data_handler for width, height, timestep, data, and measurements. 
-    Uses "relaxed grid" for holding the potential, initiated at 0*/
-    Simulation(const V2<int>& grid_size) :
-        relaxed_grid{ grid_size },  // Create potential grid based on grid size
+    Uses "relaxed grid" for holding the potential, initiated at 0.
+    NOTE: Electrode = 0 for triangle, 1 for needle, 2 for rectangle*/
+    Simulation(const V2<int>& grid_size, int electrode) : relaxed_grid{ grid_size }, electrode {electrode}, 
         data_handler{   // Define some parameters that will be stored in the json
             Data<int>{ "width", grid_size.x },
             Data<int>{ "height", grid_size.y },
@@ -40,10 +43,14 @@ public:
     // Initiates the simulation, starting by painting in the electrodes and relaxes the grid for N relaxation_loops
     void Start(int relaxation_loops) {
         loops = relaxation_loops;   // Redefines loops just in case
-        // Assigns stored voltages on the electrodes to  
-        UpdateRectangles(relaxed_grid);
-        UpdateTriangles(relaxed_grid);
-        UpdateNeedles(relaxed_grid);
+        // Assigns stored voltages on the electrodes to the grid
+        if (electrode == 0) {
+            UpdateTriangles(relaxed_grid);
+        } else if (electrode == 1) {
+            UpdateNeedles(relaxed_grid);
+        } else if (electrode == 2){
+            UpdateRectangles(relaxed_grid);
+        }
         Relax(relaxed_grid, loops, false);
         LOG("Total Circle Area:" << CheckAreaTest());
     }
@@ -55,27 +62,34 @@ public:
     void Update(float dt) {
         // Make copy of potential grid
         auto circle_grid = relaxed_grid;
+        // (important for steps after the first) set the electric potential of the circle equal to the grid value at the enter
         for (auto& circle : circles) {
             circle.value = circle_grid[circle.position];
         }
+        // Set the grid's potential values equal to the circle's at select points
         UpdateCircles(circle_grid, circles);
         for (auto& static_circle : static_circles) {
             LOG("Static Circle Value:" << static_circle.value);
         }
+        // Sets the grid's potential values equal to the STATIC circle's circles, or electrodes
         UpdateCircles(circle_grid, static_circles);
+        // Performs potential relaxation loops
         Relax(circle_grid, loops, true);
+        // With new potential calculate the electric field
         auto electric_fields = ComputeElectricField(circle_grid);
-        glob_grid_size = electric_fields.second.GetSize();
+        // Save electric field data for later
         lf_data = electric_fields.first.GetVector();
         data_handler.Add("data", lf_data);
-        std::vector<Value> voltage_range;
-        for (auto& tri : triangles) {
-            voltage_range.emplace_back(tri.value);
-        }
-        for (auto& needle : needles) {
-            voltage_range.emplace_back(needle.value);
-        }
-        auto voltage = voltage_range[1] - voltage_range[0];
+        // // Redundant:Find out the range of supplied voltages and voltage difference, note only works for 2 electrodes
+        // std::vector<Value> voltage_range;
+        // if (electrode == 0) {
+        //     voltage_range = { triangles[0].value, triangles[1].value };
+        // }
+        // else if (electrode == 1) {
+        //     voltage_range = { needles[0].value, needles[1].value };
+        // }
+        // auto voltage = voltage_range[1] - voltage_range[0];
+        glob_grid_size = electric_fields.second.GetSize();
         data_handler.Add("measurements", Measure(glob_grid_size, electric_fields.second));
         UpdatePhysics(electric_fields.second, dt);
         //UpdateCollisions();   DISABLED FOR CHAINS
@@ -1260,7 +1274,7 @@ public:
     }
     */
 
-    //@return electric_field, electric_field_squared
+    // Computes the electric field with the magnitude squared of the potential gradient. @return electric_field, electric_field_squared
     std::pair<Grid<Value>, Grid<Value>> ComputeElectricField(const Grid<Value>& potentials) const {
         Grid<Value> electric_field{ potentials.GetSize() };
         electric_field.InitValue();
@@ -1306,15 +1320,22 @@ public:
                 ) / static_cast<Value>(8.0);
             }
         }
-        UpdateRectangles(grid);
-        UpdateTriangles(grid);
+        if (electrode == 0) {
+            UpdateTriangles(grid);
+        }
+        else if (electrode == 1) {
+            UpdateNeedles(grid);
+        }
+        else if (electrode == 2) {
+            UpdateRectangles(grid);
+        } 
         if (forces_circles) {
             UpdateCircles(grid, circles);
             UpdateCircles(grid, static_circles);
             UpdateChains(grid, chains);
             UpdateChains(grid, static_chains);
         }
-        UpdateNeedles(grid);
+        
     }
 
     //V2<Value> ComputeForceOnCircle(const Grid<Value>& electric_field_squared, const Circle& circle) const {
@@ -1490,6 +1511,7 @@ public:
 
 private:
     Grid<Value> relaxed_grid;
+    int electrode;
     CircleContainer circles;
     CircleContainer static_circles;
     ChainContainer chains;

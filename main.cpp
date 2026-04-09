@@ -8,7 +8,7 @@
 int main() {
 
     // Initialize Simulation with grid size (800, 600)
-    Simulation sim(V2<int>{ 800, 600 });
+    Simulation sim(V2<int>{ 800, 600 }, 1);
 
     // WARNING: IF DIFFERENT SHAPE IS USED (I.E. NEEDLE VS TRIANGLE VS RECTANGLE), CODE WILL HAVE TO BE ADAPTED IN Simulation.h (and other
     // header files.
