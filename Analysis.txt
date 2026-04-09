@@ -8,4 +8,4 @@ relaxation method runs over 10k times for each grid point for every frame. If th
 error based system, where a grid is labeled as solved after minimal change is seen in it. 
 One method to make sure far reaching changes still affect regions of small change is to allow 
 a grid point to "skip" some checks so that only during every i^n loops are these grid points
-relaxed, with n being the number of times we see neglible change.
+relaxed, with n being the number of times we see negligible change.
