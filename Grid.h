@@ -1,54 +1,56 @@
 #pragma once
-#include "V2.h"
-#include "Collisions.h"
-#include "Circle.h"
-#include "EllipseChain.h"
-#include "Rectangle.h"
-#include "Triangle.h"
-#include "Needle.h"
-#include "TypeTraits.h"
+#include "Headers/V2.h"
+#include "Headers/Collisions.h"
+#include "Headers/Circle.h"
+#include "Headers/EllipseChain.h"
+#include "Headers/Rectangle.h"
+#include "Headers/Triangle.h"
+#include "Headers/Needle.h"
+#include "Headers/TypeTraits.h"
 
+/*This file contains the framework for the grid class, a 2D voltage map with functions to paint
+shapes onto it. Note: No unit implimentation*/
+
+/* Grid class for a 2D electric potential map, technically a 1D array where access to the index for [x,y] is
+grid[size.x * y + x].*/
 template <typename T>
 class Grid {
 public:
-
+    // Construct empty grid
     Grid() = default;
+    // Construct grid with a size and split it between length's x and y with grid[size.x * y + x] for 1D indexing
     Grid(const V2<int>& size) : size{ size }, length{ size.x * size.y } { }
 
+    // Redefines the [] operator for different object types and inputs (index and position)
     T& operator[](std::size_t idx) {
         return grid[idx];
     }
-
     const T& operator[](std::size_t idx) const {
         return grid[idx];
     }
-
     template <typename U, is_number<U> = true>
     U operator[](std::size_t idx) const {
         return grid[idx];
     }
-
     T& operator[](const V2<int>& position) {
         return grid[size.x * position.y + position.x];
     }
-
     const T& operator[](const V2<int>& position) const {
         return grid[size.x * position.y + position.x];
     }
-
     template <typename U, is_number<U> = true>
     U operator[](const V2<int>& position) const {
         return grid[size.x * position.y + position.x];
     }
-
+    // Initiates either a type value to 0
     void InitValue() {
         grid.resize(length, 0);
     }
-
+    // Initiates either a vector to empty
     void InitVector() {
         grid.resize(length, {});
     }
-
+    // Sets grid values equal to rectangle.value 
     void SetRectangle(const Rectangle& rectangle) {
         for (auto i = rectangle.position.x; i < rectangle.position.x + rectangle.size.x; ++i) {
             for (auto j = rectangle.position.y; j < rectangle.position.y + rectangle.size.y; ++j) {
@@ -56,7 +58,7 @@ public:
             }
         }
     }
-
+    // Sets grid values equal to triangle.value and fills triangle.points if not yet created
     void SetTriangle(const Triangle& triangle) {
         if(triangle.points.empty()) {
             for (int i = 0; i < size.x; ++i) {
@@ -79,7 +81,7 @@ public:
             }
         }
     }
-
+    // Sets grid values equal to needle.value and fills needle.points if not yet created
     void SetNeedle(const Needle& needle) {
         auto v1 = needle.v1; auto v2 = needle.v2; auto v3 = needle.v3; auto cp = needle.cp;
         // define boundary
@@ -150,7 +152,7 @@ public:
             }
         }
     }
-
+    // Create a rectangle area ab and if point in circle then set gridvalue = circle.value
     void SetCircle(const Circle& circle) {
         // essentially set up box of points around ellipse and see which ones inside (instead of iterating over entire grid)
         for (auto i = 0; i <= 2*circle.a; ++i) {
@@ -164,7 +166,7 @@ public:
             }
         }
     }
-
+    // Lookup chain and set every circle point within the chain = chain.value
     void SetChain(const Chain& chain) {
         for (const Circle& circle : chain.group) {
             for (auto i = 0; i <= 2 * circle.a; ++i) {
@@ -179,7 +181,7 @@ public:
             }
         }
     }
-
+    // Prints out the grid into terminal 
     void PrintGrid() const {
         LOG("------------------------");
         for (auto i = 0; i < size.x; ++i) {
@@ -193,25 +195,26 @@ public:
         }
         LOG("------------------------");
     }
-
+    // Converts potential from grid[x,y] = number into gradient gradient[x,y] = (dx, dy)
     Grid<V2<Value>> GetGradient() const {
+        // Create output
         Grid<V2<Value>> gradient{ size };
         gradient.InitVector();
         auto gradient_size = gradient.GetSize();
+        // Loop through every grid point
         for (auto x = 0; x < gradient_size.x; ++x) {
-
             auto next_x = x + 1;
-
             for (auto y = 0; y < gradient_size.y; ++y) {
                 V2<Value> gradient_value;
-
                 auto next_y = y + 1;
+
+                // Grab index of all adjacent points
                 auto index = y * size.x + x;
                 auto next_x_index = index + 1;
                 auto last_x_index = index - 1;
                 auto next_y_index = index + size.x;
                 auto last_y_index = index - size.x;
-
+                // Use central difference method to calc the gradient (if statements for boundry)
                 if (x > 0 && next_x < gradient_size.x) {
                     gradient_value.x = (grid[next_x_index] - grid[last_x_index]) / static_cast<Value>(2.0);
                 } else if (x == 0) {
@@ -231,15 +234,15 @@ public:
         }
         return gradient;
     }
-
+    // returns the grid dimensions (width, height) as a V2<int>
     const V2<int>& GetSize() const {
         return size;
     }
-
+    // Returns the total number of grid cells: length = size.x * size.y
     const int GetLength() const {
         return length;
     }
-
+    // Returns the underlying flattened 1D vector storing the grid contents. 
     const std::vector<T>& GetVector() const {
         return grid;
     }

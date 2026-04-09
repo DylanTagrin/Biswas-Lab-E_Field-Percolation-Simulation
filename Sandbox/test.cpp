@@ -2,14 +2,27 @@
 
 #include <iostream>
 #include <numbers>
+#include <cmath>
 #include <iomanip> // Optional: for setting precision
+using namespace std;
+#include <cstdlib> // for rand() and srand()
+#include "functiontests.h"
+#include "../Grid.h"
+#include "../Headers/V2.h"
+#include "omp.h"
+#include "../Headers/Defines.h"
+#include "../Headers/Utilities.h"
+#include "../Headers/Collisions.h"
+#include "../Headers/DataHandler.h"
+#include "../Grid.h"
+
+
 
 int main() {
-    // Use std::numbers::pi for a double precision value
-    std::cout << std::setprecision(20) << "Pi (double): " << std::numbers::pi << std::endl;
+   
 
-    // Use a template for specific floating-point types, e.g., long double
-    std::cout << std::setprecision(20) << "Pi (long double): " << std::numbers::pi_v<long double> << std::endl;
+    std::cout << "Ran with no errors";
 
     return 0;
 }
+

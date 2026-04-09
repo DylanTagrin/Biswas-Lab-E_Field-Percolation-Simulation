@@ -4,12 +4,11 @@
 //#include "matplotlibcpp.h"
 //namespace plt = matplotlibcpp;
 
-// TO DO
-// Make data file smaller
 
 int main() {
 
-    Simulation sim(V2<int>{ 800, 600 });
+    // Initialize Simulation with grid size (800, 600)
+    Simulation sim(V2<int>{ 800, 600 }, 1);
 
     // WARNING: IF DIFFERENT SHAPE IS USED (I.E. NEEDLE VS TRIANGLE VS RECTANGLE), CODE WILL HAVE TO BE ADAPTED IN Simulation.h (and other
     // header files.
@@ -18,6 +17,7 @@ int main() {
 
     // --------------------> note that first two points form straight edge of needle! <--------------
     
+    // Add needles (electrodes) to the simulation with specified vertices and values
     sim.AddNeedle(Needle({ 0, 74 }, { 0, 524 }, { 299, 299 }, 50));
     sim.AddNeedle(Needle({ 799, 74 }, { 799, 524 }, { 499, 299 }, -50));
     
@@ -177,11 +177,11 @@ int main() {
     sim.AddCircle(Circle({ 329, 269 }, 15, 15));
 
 
-    sim.Start(10000);
+    sim.Start(100);
 
 
-    auto frames = 20;
-    auto static_frames = 5;
+    auto frames = 2;
+    auto static_frames = 1;
     for (auto i = 0; i < frames; i++) {
         LOG("Computing frame " << i);
         sim.Update(0.1);
@@ -193,7 +193,7 @@ int main() {
         
     sim.StaticUpdate(static_frames);
 
-    sim.Save("data.json");
+    sim.Save("output/data.json");
 
     LOG("Done!");
 
