@@ -1,0 +1,11 @@
+This text file is here to provide insights the authors may have had while working on the program, 
+so that the reader can understand the thought process behind some changes, where future changes
+need to be made, where core problems lie, and how things can be improved.
+
+04/09/2026
+Currently the simulation performs quite slowly for each frame, this is in part due to how the 
+relaxation method runs over 10k times for each grid point for every frame. If this becomes an 
+error based system, where a grid is labeled as solved after minimal change is seen in it. 
+One method to make sure far reaching changes still affect regions of small change is to allow 
+a grid point to "skip" some checks so that only during every i^n loops are these grid points
+relaxed, with n being the number of times we see neglible change.

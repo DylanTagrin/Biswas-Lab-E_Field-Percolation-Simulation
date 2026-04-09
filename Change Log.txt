@@ -1,0 +1,5 @@
+This is here to let any reader know what changes have been made to the program over time
+so that it would be easier to track any changes from when Dylan Tagrin originally recieved the program.
+
+April 2026: Extensive documentation on how every function behaves
+04/07/2026: Added the AddCircle function to circle.h

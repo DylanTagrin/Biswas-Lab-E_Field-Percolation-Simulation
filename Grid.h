@@ -9,7 +9,7 @@
 #include "TypeTraits.h"
 
 /*This file contains the framework for the grid class, a 2D voltage map with functions to paint
-shapes onto it.*/
+shapes onto it. Note: No unit implimentation*/
 
 /* Grid class for a 2D electric potential map, technically a 1D array where access to the index for [x,y] is
 grid[size.x * y + x].*/
