@@ -9,11 +9,11 @@
 //#include "gsl/gsl_sf.h"
 //#include "gsl/gsl_math.h"
 #include "omp.h"
-#include "Defines.h"
-#include "Utilities.h"
-#include "Collisions.h"
+#include "Headers/Defines.h"
+#include "Headers/Utilities.h"
+#include "Headers/Collisions.h"
+#include "Headers/DataHandler.h"
 #include "Grid.h"
-#include "DataHandler.h"
 
 /*This file is the main simulation engine and has a lot going on with it.*/
 
@@ -28,7 +28,7 @@ public:
     Uses "relaxed grid" for holding the potential, initiated at 0*/
     Simulation(const V2<int>& grid_size) :
         relaxed_grid{ grid_size },  // Create potential grid based on grid size
-        data_handler{
+        data_handler{   // Define some parameters that will be stored in the json
             Data<int>{ "width", grid_size.x },
             Data<int>{ "height", grid_size.y },
             Data<int>{ "timestep", 1 },
@@ -40,6 +40,7 @@ public:
     // Initiates the simulation, starting by painting in the electrodes and relaxes the grid for N relaxation_loops
     void Start(int relaxation_loops) {
         loops = relaxation_loops;   // Redefines loops just in case
+        // Assigns stored voltages on the electrodes to  
         UpdateRectangles(relaxed_grid);
         UpdateTriangles(relaxed_grid);
         UpdateNeedles(relaxed_grid);
@@ -1278,7 +1279,7 @@ public:
         auto size = grid.GetSize();
         for (auto i = 0; i < relaxation_loops; ++i) { // Runs relaxgrid for a set number of times
             RelaxGrid(size, grid, force_circles);
-            //LOG(i);
+            LOG(i);
         }
     }
     /* Function for relaxing grid; updates grid values based on average of 8 surrounding points; 
