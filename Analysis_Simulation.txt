@@ -1,0 +1,3 @@
+This file documents any notable observations made from the simulations themselves, from
+physical observations and analysis to analysis of the code's behavior through the simulation.
+

@@ -15,14 +15,19 @@
 #include "Grid.h"
 #include "DataHandler.h"
 
+/*This file is the main simulation engine and has a lot going on with it.*/
+
+
 class Simulation {
 public:
     V2<int> glob_grid_size;
     bool sim_stopped = false;
     std::vector<Value> lf_data;
-
+    /* Simulation constructor with a V2 gridsize input. 
+    Contains data_handler for width, height, timestep, data, and measurements. 
+    Uses "relaxed grid" for holding the potential, initiated at 0*/
     Simulation(const V2<int>& grid_size) :
-        relaxed_grid{ grid_size },
+        relaxed_grid{ grid_size },  // Create potential grid based on grid size
         data_handler{
             Data<int>{ "width", grid_size.x },
             Data<int>{ "height", grid_size.y },
@@ -32,21 +37,22 @@ public:
         } {
         relaxed_grid.InitValue();
     }
-
+    // Initiates the simulation, starting by painting in the electrodes and relaxes the grid for N relaxation_loops
     void Start(int relaxation_loops) {
-        loops = relaxation_loops;
+        loops = relaxation_loops;   // Redefines loops just in case
         UpdateRectangles(relaxed_grid);
         UpdateTriangles(relaxed_grid);
         UpdateNeedles(relaxed_grid);
         Relax(relaxed_grid, loops, false);
         LOG("Total Circle Area:" << CheckAreaTest());
     }
-
+    // Saves the data_handler data to file_path as a json
     void Save(const char* file_path) {
         data_handler.SaveToFile(file_path);
     }
-
+    /* Main driver for frame step. Copies potential grid,  */
     void Update(float dt) {
+        // Make copy of potential grid
         auto circle_grid = relaxed_grid;
         for (auto& circle : circles) {
             circle.value = circle_grid[circle.position];
@@ -1266,16 +1272,18 @@ public:
         }
         return { electric_field, electric_field_squared };
     }
-
+    /* Runs RelaxGrid for a set number of loops using the input grid, num of loops, and if force_circles.
+    Description of RelaxGrid below.*/
     void Relax(Grid<Value>& grid, int relaxation_loops, bool force_circles) {
         auto size = grid.GetSize();
-        for (auto i = 0; i < relaxation_loops; ++i) {
+        for (auto i = 0; i < relaxation_loops; ++i) { // Runs relaxgrid for a set number of times
             RelaxGrid(size, grid, force_circles);
             //LOG(i);
         }
     }
-
-    void RelaxGrid(const V2<int>& size, Grid<Value>& grid, bool forces_circles) {   // Function for relaxing grid; updates grid values based on average of 8 surrounding points; also updates circle positions if forces_circles is true
+    /* Function for relaxing grid; updates grid values based on average of 8 surrounding points; 
+    also updates circle positions if forces_circles is true*/
+    void RelaxGrid(const V2<int>& size, Grid<Value>& grid, bool forces_circles) {  
         auto old_grid = grid;
         #pragma omp parallel for
         for (auto i = 1; i < size.x - 1; ++i) {
@@ -1428,7 +1436,7 @@ public:
         }
     }
     */
-
+    // With a potential grid, and a container of circles, set the grid's potential for the points that the cirlces occupy = to the circle's potential with grid.SetCircle(circle)
     void UpdateCircles(Grid<Value>& grid, const CircleContainer& container) {
         for (const auto& circle : container) {
             grid.SetCircle(circle);
