@@ -51,7 +51,7 @@ public:
         } else if (electrode == 2){
             UpdateRectangles(relaxed_grid);
         }
-        Relax(relaxed_grid, loops, false);
+        Relax(relaxed_grid, loops, false, false, 0, 0, 0);
         LOG("Total Circle Area:" << CheckAreaTest());
     }
     // Saves the data_handler data to file_path as a json
@@ -73,22 +73,16 @@ public:
         }
         // Sets the grid's potential values equal to the STATIC circle's circles, or electrodes
         UpdateCircles(circle_grid, static_circles);
-        // Performs potential relaxation loops
-        Relax(circle_grid, loops, true);
+        // Performs potential relaxation loops and define some vars for error checking, can be moved into inputs later
+        double error_tolerance = 0.01;
+        int min_loops = 10;
+        int check_every = 10;
+        Relax(circle_grid, loops, true, true, error_tolerance, min_loops, check_every);
         // With new potential calculate the electric field
         auto electric_fields = ComputeElectricField(circle_grid);
         // Save electric field data for later
         lf_data = electric_fields.first.GetVector();
         data_handler.Add("data", lf_data);
-        // // Redundant:Find out the range of supplied voltages and voltage difference, note only works for 2 electrodes
-        // std::vector<Value> voltage_range;
-        // if (electrode == 0) {
-        //     voltage_range = { triangles[0].value, triangles[1].value };
-        // }
-        // else if (electrode == 1) {
-        //     voltage_range = { needles[0].value, needles[1].value };
-        // }
-        // auto voltage = voltage_range[1] - voltage_range[0];
         glob_grid_size = electric_fields.second.GetSize();
         data_handler.Add("measurements", Measure(glob_grid_size, electric_fields.second));
         UpdatePhysics(electric_fields.second, dt);
@@ -1289,17 +1283,31 @@ public:
     }
     /* Runs RelaxGrid for a set number of loops using the input grid, num of loops, and if force_circles.
     Description of RelaxGrid below.*/
-    void Relax(Grid<Value>& grid, int relaxation_loops, bool force_circles) {
+    void Relax(Grid<Value>& grid, int max_loops, bool force_circles, bool error_check, double tolerance, int min_loops, int check_every) {
         auto size = grid.GetSize();
-        for (auto i = 0; i < relaxation_loops; ++i) { // Runs relaxgrid for a set number of times
-            RelaxGrid(size, grid, force_circles);
-            // LOG(i);
+        for (auto i = 0; i < max_loops; ++i) { // Runs relaxgrid for a set number of times
+            Value max_change = RelaxGrid(size, grid, force_circles);
+            if (error_check && i + 1 >= min_loops && ((i + 1) % check_every == 0)) {
+                if (max_change < tolerance) {
+                    LOG(i);
+                    break;
+            }
         }
+        }
+        LOG("Relaxation complete after " << max_loops << " iterations.");
     }
+    // void Relax(Grid<Value>& grid, int max_loops, bool force_circles, bool error_check, double tolerance, int min_loops, int check_every) {
+    //     auto size = grid.GetSize();
+    //     for (auto i = 0; i < max_loops; ++i) { // Runs relaxgrid for a set number of times
+    //         RelaxGrid(size, grid, force_circles);
+    //         // LOG(i);
+    //     }
+    // }
     /* Function for relaxing grid; updates grid values based on average of 8 surrounding points; 
     also updates circle positions if forces_circles is true*/
-    void RelaxGrid(const V2<int>& size, Grid<Value>& grid, bool forces_circles) {  
+    Value RelaxGrid(const V2<int>& size, Grid<Value>& grid, bool forces_circles) {  
         auto old_grid = grid;
+        auto max_change = static_cast<Value>(0);
         #pragma omp parallel for
         for (auto i = 1; i < size.x - 1; ++i) {
             auto x_last = i - 1;
@@ -1318,6 +1326,8 @@ public:
                     + old_grid[y_index_plus + i]
                     + old_grid[y_index_plus + x_next]
                 ) / static_cast<Value>(8.0);
+                max_change = std::max(max_change, std::abs(grid[y_part + i] - old_grid[y_part + i]));
+
             }
         }
         if (electrode == 0) {
@@ -1335,6 +1345,7 @@ public:
             UpdateChains(grid, chains);
             UpdateChains(grid, static_chains);
         }
+        return max_change;
         
     }
 
