@@ -21,6 +21,7 @@ using namespace std;
 int main() {
    
 
+    std::cout << "Ran with no errors";
 
     return 0;
 }

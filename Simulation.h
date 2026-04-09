@@ -1279,7 +1279,7 @@ public:
         auto size = grid.GetSize();
         for (auto i = 0; i < relaxation_loops; ++i) { // Runs relaxgrid for a set number of times
             RelaxGrid(size, grid, force_circles);
-            LOG(i);
+            // LOG(i);
         }
     }
     /* Function for relaxing grid; updates grid values based on average of 8 surrounding points; 

@@ -1,12 +1,12 @@
 #pragma once
-#include "V2.h"
-#include "Collisions.h"
-#include "Circle.h"
-#include "EllipseChain.h"
-#include "Rectangle.h"
-#include "Triangle.h"
-#include "Needle.h"
-#include "TypeTraits.h"
+#include "Headers/V2.h"
+#include "Headers/Collisions.h"
+#include "Headers/Circle.h"
+#include "Headers/EllipseChain.h"
+#include "Headers/Rectangle.h"
+#include "Headers/Triangle.h"
+#include "Headers/Needle.h"
+#include "Headers/TypeTraits.h"
 
 /*This file contains the framework for the grid class, a 2D voltage map with functions to paint
 shapes onto it. Note: No unit implimentation*/
