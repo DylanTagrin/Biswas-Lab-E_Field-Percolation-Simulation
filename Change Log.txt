@@ -3,3 +3,10 @@ so that it would be easier to track any changes from when Dylan Tagrin originall
 
 April 2026: Extensive documentation on how every function behaves
 04/07/2026: Added the AddCircle function to circle.h
+
+04/09/2026: Added an error calculation to Relax
+
+04/10/2026: 
+Added a dialogue tree to main.cpp to allow for custom imputs and to stop having to compile the entire simulation for small parameter changes
+Added clock time calculations that report how long the simulation has been running for after each relax step
+Added modifications to the error calcuation formula in Relax, basing it on global change

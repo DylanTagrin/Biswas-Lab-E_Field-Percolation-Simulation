@@ -4,6 +4,7 @@
 #include <functional>
 #include <limits>
 #include <type_traits>
+#include <chrono>
 
 //#include "gsl/gsl_integration.h"
 //#include "gsl/gsl_sf.h"
@@ -30,7 +31,9 @@ public:
     Contains data_handler for width, height, timestep, data, and measurements. 
     Uses "relaxed grid" for holding the potential, initiated at 0.
     NOTE: Electrode = 0 for triangle, 1 for needle, 2 for rectangle*/
-    Simulation(const V2<int>& grid_size, int electrode) : relaxed_grid{ grid_size }, electrode {electrode}, 
+    Simulation(const V2<int>& grid_size, int electrode) : relaxed_grid{ grid_size }, 
+    electrode {electrode}, 
+    time_start{std::chrono::steady_clock::now()},
         data_handler{   // Define some parameters that will be stored in the json
             Data<int>{ "width", grid_size.x },
             Data<int>{ "height", grid_size.y },
@@ -42,6 +45,8 @@ public:
     }
     // Initiates the simulation, starting by painting in the electrodes and relaxes the grid for N relaxation_loops
     void Start(int relaxation_loops) {
+        time_start = std::chrono::steady_clock::now();
+        LOG("Simulation Starting...");
         loops = relaxation_loops;   // Redefines loops just in case
         // Assigns stored voltages on the electrodes to the grid
         if (electrode == 0) {
@@ -350,7 +355,7 @@ public:
             circle.pos_old = circle.position;
             auto force = ComputeForceOnCircle(electric_field_squared, circle);
             circle.acceleration = { 1.0f * force.x, 1.0f * force.y };
-            LOG("Force on circle: " << force.x << "," << force.y);
+            // LOG("Force on circle: " << force.x << "," << force.y);
             circle.velocity = { 1.0f * force.x, 1.0f * force.y };
             // ensure that circles move even for small, persistent forces and improve accuracy for small forces
             if (dt * abs(circle.velocity.x) < 5) {
@@ -368,7 +373,7 @@ public:
             for (auto& member : chain.group) {
                 net_force += ComputeForceOnCircle(electric_field_squared, member);
             }
-            LOG("Force on chain: " << net_force.x << "," << net_force.y);
+            // LOG("Force on chain: " << net_force.x << "," << net_force.y);
             chain.velocity = { 1.0f * net_force.x, 1.0f * net_force.y };
             // ensure that chains move even for small, persistent forces and improve accuracy for small forces
             if (dt * abs(chain.velocity.x) < 5) {
@@ -1289,20 +1294,18 @@ public:
             Value max_change = RelaxGrid(size, grid, force_circles);
             if (error_check && i + 1 >= min_loops && ((i + 1) % check_every == 0)) {
                 if (max_change < tolerance) {
-                    LOG(i);
+                    auto time_relax = std::chrono::steady_clock::now();
+                    auto sec_int = std::chrono::duration_cast<std::chrono::seconds>(time_relax - time_start);
+                    LOG("Relaxation complete after " << i + 1 << " iterations and " << sec_int.count() << " seconds.");
                     break;
             }
         }
         }
-        LOG("Relaxation complete after " << max_loops << " iterations.");
+        auto time_relax = std::chrono::steady_clock::now();
+        auto sec_int = std::chrono::duration_cast<std::chrono::seconds>(time_relax - time_start);
+        LOG("Relaxation complete after " << max_loops << " iterations and " << sec_int.count() << " seconds.");
     }
-    // void Relax(Grid<Value>& grid, int max_loops, bool force_circles, bool error_check, double tolerance, int min_loops, int check_every) {
-    //     auto size = grid.GetSize();
-    //     for (auto i = 0; i < max_loops; ++i) { // Runs relaxgrid for a set number of times
-    //         RelaxGrid(size, grid, force_circles);
-    //         // LOG(i);
-    //     }
-    // }
+    
     /* Function for relaxing grid; updates grid values based on average of 8 surrounding points; 
     also updates circle positions if forces_circles is true*/
     Value RelaxGrid(const V2<int>& size, Grid<Value>& grid, bool forces_circles) {  
@@ -1522,6 +1525,7 @@ public:
 
 private:
     Grid<Value> relaxed_grid;
+    std::chrono::steady_clock::time_point time_start;
     int electrode;
     CircleContainer circles;
     CircleContainer static_circles;

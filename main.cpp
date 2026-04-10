@@ -8,15 +8,20 @@
 int main() {
     int loops;
     int electrode_type;
+    int frames; 
 
-
+    // Short dialogue tree to get simulation inputs from the user
     LOG("Hello! Welcome to the Amlan Biswas Lab's Dielectrophoresis simulation.");
     LOG("First, please input some parameters regarding the simulation.");
+    LOG("How many frames would you like to compute?");
+    LOG_("Please input an integer: ");
+    std::cin >> frames;
+    LOG("Confirmation: You have input " << frames << " frames to compute.");
     LOG_("Input the max number of relaxation loops: "); 
     std::cin >> loops;
     LOG("Confirmation: You have input " << loops << " as the maximum amount of loops.");
     LOG("What shape Electrodes would you like to use? Please input an integer."); 
-    LOG_("(0) for triangle, (1) for needle, (2) for rectangle:");
+    LOG_("(0) for triangle, (1) for needle, (2) for rectangle: ");
     std::cin >> electrode_type;
     if (electrode_type == 0) {
         LOG("Confirmation: You have selected triangle electrodes.");
@@ -205,7 +210,7 @@ int main() {
     sim.Start(loops);
 
 
-    auto frames = 5;
+    
     auto static_frames = 1;
     for (auto i = 0; i < frames; i++) {
         LOG("Computing frame " << i);
@@ -221,6 +226,6 @@ int main() {
     sim.Save("output/data.json");
 
     LOG("Done!");
-
+    std::cin.ignore();
     std::cin.get();
 }

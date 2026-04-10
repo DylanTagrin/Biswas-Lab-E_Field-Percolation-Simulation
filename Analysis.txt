@@ -9,3 +9,18 @@ error based system, where a grid is labeled as solved after minimal change is se
 One method to make sure far reaching changes still affect regions of small change is to allow 
 a grid point to "skip" some checks so that only during every i^n loops are these grid points
 relaxed, with n being the number of times we see negligible change.
+
+04/10/2026
+Now with better runtime calculations it can be easily determined that two main sources of computation
+draw for the simulation are the relaxation steps when they are over 1000 iterations (can be several minutes)
+and the motion of the conducting circles AFTER the force calucations, averaging about 30 seconds.
+The error calculation for the grid potential is a promising method because there's some 
+big problems with trying to improve relax time.
+
+Solving the Laplacian with the relaxation method is a "global" change, meaning we can't skip
+any points if they have "just" a small change, however most points will experience 
+"No change" for at least 100 iterations as the changes propagate out from the electrodes 
+and circles as the circles move or the voltages in the electrodes change (ie from 0 to 10V).
+One potential yet hard to impliment solution to this would be to check every grid point
+1 + i points away from the sources of electric potential change since at i + 2 grid points
+away there is no change.
