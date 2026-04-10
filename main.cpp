@@ -6,9 +6,34 @@
 
 
 int main() {
+    int loops;
+    int electrode_type;
+
+
+    LOG("Hello! Welcome to the Amlan Biswas Lab's Dielectrophoresis simulation.");
+    LOG("First, please input some parameters regarding the simulation.");
+    LOG_("Input the max number of relaxation loops: "); 
+    std::cin >> loops;
+    LOG("Confirmation: You have input " << loops << " as the maximum amount of loops.");
+    LOG("What shape Electrodes would you like to use? Please input an integer."); 
+    LOG_("(0) for triangle, (1) for needle, (2) for rectangle:");
+    std::cin >> electrode_type;
+    if (electrode_type == 0) {
+        LOG("Confirmation: You have selected triangle electrodes.");
+    }
+    else if (electrode_type == 1) {
+        LOG("Confirmation: You have selected needle electrodes.");
+    }
+    else if (electrode_type == 2) {
+        LOG("Confirmation: You have selected rectangle electrodes.");
+    }
+    else {
+        LOG("Invalid input, defaulting to triangle electrodes.");
+        electrode_type = 0;
+    }
 
     // Initialize Simulation with grid size (800, 600)
-    Simulation sim(V2<int>{ 800, 600 }, 1);
+    Simulation sim(V2<int>{ 800, 600 }, electrode_type);
 
     // WARNING: IF DIFFERENT SHAPE IS USED (I.E. NEEDLE VS TRIANGLE VS RECTANGLE), CODE WILL HAVE TO BE ADAPTED IN Simulation.h (and other
     // header files.
@@ -177,10 +202,10 @@ int main() {
     sim.AddCircle(Circle({ 329, 269 }, 15, 15));
 
 
-    sim.Start(100);
+    sim.Start(loops);
 
 
-    auto frames = 2;
+    auto frames = 5;
     auto static_frames = 1;
     for (auto i = 0; i < frames; i++) {
         LOG("Computing frame " << i);
