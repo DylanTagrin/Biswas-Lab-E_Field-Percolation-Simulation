@@ -63,7 +63,7 @@ public:
         dynamic_grid.InitValue();
     }
     // Initiates the simulation, starting by painting in the electrodes and relaxes the grid for N relaxation_loops
-    void Start(int relaxation_loops) {
+    void Start(int relaxation_loops, double error, int min_loops, int check_every) {
         time_start = std::chrono::steady_clock::now();
         LOG("Simulation Starting...");
         loops = relaxation_loops;   // Redefines loops just in case
@@ -77,7 +77,7 @@ public:
         }
         data_handler.Write("electrode_type", electrode);
         data_handler.Write("electrodes", SerializeElectrodes());
-        Relax(relaxed_grid, loops, false, false, 0, 0, 0);
+        Relax(relaxed_grid, loops, false, false, error, min_loops, check_every);
         dynamic_grid = relaxed_grid;
         dynamic_grid_initialized = true;
         LOG("Total Circle Area:" << CheckAreaTest());
@@ -1359,6 +1359,7 @@ public:
             }
 
             if (!error_check && i + 1 >= min_loops && ((i + 1) % check_every == 0)) {
+                LOG("Iteration " << i + 1 << ", rel_error = " << rel_error);
                 data_handler.Add("relax_iterations", i);
                 data_handler.Add("relax_error", rel_error);
             }
@@ -1660,11 +1661,18 @@ public:
         }
 
         for (const auto& needle : needles) {
+            json edge = json::array();
+            for (const auto& p : needle.edge_points) {
+                edge.push_back({p.x, p.y});
+            }
+
             arr.push_back({
                 {"shape", "needle"},
                 {"v1", {needle.v1.x, needle.v1.y}},
                 {"v2", {needle.v2.x, needle.v2.y}},
                 {"v3", {needle.v3.x, needle.v3.y}},
+                {"cp", {needle.cp.x, needle.cp.y}},
+                {"edge_points", edge},
                 {"value", needle.value}
             });
         }

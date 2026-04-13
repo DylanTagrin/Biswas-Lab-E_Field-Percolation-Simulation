@@ -222,7 +222,7 @@ int main() {
     sim.AddCircle(Circle({ 329, 269 }, 15, 15));
 
 
-    sim.Start(loops);
+    sim.Start(loops, error, min_loops, check_every);
     
     
     for (auto i = 0; i < frames; i++) {
@@ -233,7 +233,7 @@ int main() {
             break;
         }
     }
-    
+
     // auto static_frames = 1;  
     // sim.StaticUpdate(static_frames);
 

@@ -53,10 +53,12 @@ def load_sim_data(path: Path):
 
 def draw_electrodes(ax, electrodes):
     patches = []
+    line_artists = []
+
     for e in electrodes:
         shape = e["shape"]
 
-        if shape in ("triangle", "needle"):
+        if shape == "triangle":
             pts = np.array([e["v1"], e["v2"], e["v3"]], dtype=float)
             poly = Polygon(pts, closed=True, fill=False, linewidth=2.0)
             ax.add_patch(poly)
@@ -75,17 +77,37 @@ def draw_electrodes(ax, electrodes):
             ax.add_patch(rect)
             patches.append(rect)
 
-    return patches
+        elif shape == "needle":
+            if "edge_points" in e and len(e["edge_points"]) > 1:
+                pts = np.array(e["edge_points"], dtype=float)
+                line, = ax.plot(pts[:, 0], pts[:, 1], linewidth=2.0)
+                line_artists.append(line)
+            else:
+                # fallback if edge_points were not saved
+                pts = np.array([e["v1"], e["v2"], e["v3"]], dtype=float)
+                poly = Polygon(pts, closed=True, fill=False, linewidth=2.0)
+                ax.add_patch(poly)
+                patches.append(poly)
+
+    return patches, line_artists
 
 
 def animate_circles(data, output_path="output/circles_animation.mp4"):
     width = data["width"]
     height = data["height"]
+
     moving = data["moving_circles"]
     static = data["static_circles"]
+    moving_chains = data.get("moving_chains", [])
+    static_chains = data.get("static_chains", [])
     electrodes = data.get("electrodes", [])
 
-    n_frames = min(len(moving), len(static))
+    n_frames = min(
+        len(moving),
+        len(static),
+        len(moving_chains) if moving_chains else len(moving),
+        len(static_chains) if static_chains else len(static),
+    )
 
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.set_xlim(0, width)
@@ -95,10 +117,7 @@ def animate_circles(data, output_path="output/circles_animation.mp4"):
     ax.set_xlabel("x")
     ax.set_ylabel("y")
 
-    # Uncomment if the geometry looks vertically flipped
-    # ax.invert_yaxis()
-
-    draw_electrodes(ax, electrodes)
+    electrode_patches, electrode_lines = draw_electrodes(ax, electrodes)
 
     dynamic_patches = []
     title = ax.text(
@@ -112,31 +131,38 @@ def animate_circles(data, output_path="output/circles_animation.mp4"):
             p.remove()
         dynamic_patches = []
 
+    def add_circle_patch(circle_dict, linestyle="-", linewidth=1.5):
+        e = Ellipse(
+            xy=(circle_dict["x"], circle_dict["y"]),
+            width=2 * circle_dict["a"],
+            height=2 * circle_dict["b"],
+            fill=False,
+            linewidth=linewidth,
+            linestyle=linestyle,
+        )
+        ax.add_patch(e)
+        dynamic_patches.append(e)
+
     def update(frame_idx):
         clear_dynamic()
 
+        # Free moving circles
         for c in moving[frame_idx]:
-            e = Ellipse(
-                xy=(c["x"], c["y"]),
-                width=2 * c["a"],
-                height=2 * c["b"],
-                fill=False,
-                linewidth=1.5,
-            )
-            ax.add_patch(e)
-            dynamic_patches.append(e)
+            add_circle_patch(c, linestyle="-", linewidth=1.5)
 
+        # Free static circles
         for c in static[frame_idx]:
-            e = Ellipse(
-                xy=(c["x"], c["y"]),
-                width=2 * c["a"],
-                height=2 * c["b"],
-                fill=False,
-                linewidth=2.0,
-                linestyle="--",
-            )
-            ax.add_patch(e)
-            dynamic_patches.append(e)
+            add_circle_patch(c, linestyle="--", linewidth=2.0)
+
+        # Moving chain members
+        for chain in moving_chains[frame_idx]:
+            for member in chain["members"]:
+                add_circle_patch(member, linestyle="-", linewidth=1.5)
+
+        # Static chain members
+        for chain in static_chains[frame_idx]:
+            for member in chain["members"]:
+                add_circle_patch(member, linestyle="--", linewidth=2.0)
 
         title.set_text(f"Frame {frame_idx}")
         return dynamic_patches + [title]
