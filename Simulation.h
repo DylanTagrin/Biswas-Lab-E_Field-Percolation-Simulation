@@ -53,7 +53,10 @@ public:
         Data<std::vector<std::vector<Value>>>{ "field_y", std::vector<std::vector<Value>>{} },
 
         Data<std::vector<Value>>{ "relax_iterations", std::vector<Value>{} },
-        Data<std::vector<Value>>{ "relax_error", std::vector<Value>{} }
+        Data<std::vector<Value>>{ "relax_error", std::vector<Value>{} },
+
+        Data<int>{ "electrode_type", electrode },
+        Data<json>{ "electrodes", json::array() }
     }
         {
         relaxed_grid.InitValue();
@@ -72,6 +75,8 @@ public:
         } else if (electrode == 2){
             UpdateRectangles(relaxed_grid);
         }
+        data_handler.Write("electrode_type", electrode);
+        data_handler.Write("electrodes", SerializeElectrodes());
         Relax(relaxed_grid, loops, false, false, 0, 0, 0);
         dynamic_grid = relaxed_grid;
         dynamic_grid_initialized = true;
@@ -1352,6 +1357,11 @@ public:
                     break;
                 }
             }
+
+            if (!error_check && i + 1 >= min_loops && ((i + 1) % check_every == 0)) {
+                data_handler.Add("relax_iterations", i);
+                data_handler.Add("relax_error", rel_error);
+            }
         }
 
         if (!converged) {
@@ -1633,6 +1643,41 @@ public:
                 {"members", members}
             });
         }
+        return arr;
+    }
+    // Json datawrapper helper function that takes the coordinates of the electrodes and dumps it into the json
+    json SerializeElectrodes() const {
+        json arr = json::array();
+
+        for (const auto& tri : triangles) {
+            arr.push_back({
+                {"shape", "triangle"},
+                {"v1", {tri.v1.x, tri.v1.y}},
+                {"v2", {tri.v2.x, tri.v2.y}},
+                {"v3", {tri.v3.x, tri.v3.y}},
+                {"value", tri.value}
+            });
+        }
+
+        for (const auto& needle : needles) {
+            arr.push_back({
+                {"shape", "needle"},
+                {"v1", {needle.v1.x, needle.v1.y}},
+                {"v2", {needle.v2.x, needle.v2.y}},
+                {"v3", {needle.v3.x, needle.v3.y}},
+                {"value", needle.value}
+            });
+        }
+
+        for (const auto& rect : rectangles) {
+            arr.push_back({
+                {"shape", "rectangle"},
+                {"position", {rect.position.x, rect.position.y}},
+                {"size", {rect.size.x, rect.size.y}},
+                {"value", rect.value}
+            });
+        }
+
         return arr;
     }
 
