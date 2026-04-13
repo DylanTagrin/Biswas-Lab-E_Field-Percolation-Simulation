@@ -42,6 +42,13 @@ public:
     U operator[](const V2<int>& position) const {
         return grid[size.x * position.y + position.x];
     }
+    Grid& operator=(const Grid& other) {
+        if (this != &other) {
+            assert(size == other.size);
+            grid = other.grid;
+        }
+        return *this;
+    }
     // Initiates either a type value to 0
     void InitValue() {
         grid.resize(length, 0);

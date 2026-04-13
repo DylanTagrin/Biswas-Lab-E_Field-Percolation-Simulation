@@ -31,7 +31,9 @@ public:
     Contains data_handler for width, height, timestep, data, and measurements. 
     Uses "relaxed grid" for holding the potential, initiated at 0.
     NOTE: Electrode = 0 for triangle, 1 for needle, 2 for rectangle*/
-    Simulation(const V2<int>& grid_size, int electrode) : relaxed_grid{ grid_size }, 
+    Simulation(const V2<int>& grid_size, int electrode) : 
+    relaxed_grid{ grid_size }, 
+    dynamic_grid{ grid_size },
     electrode {electrode}, 
     time_start{std::chrono::steady_clock::now()},
         data_handler{   // Define some parameters that will be stored in the json
@@ -42,6 +44,7 @@ public:
             Data<std::vector<Value>>{ "measurements", std::vector<Value>{} }
         } {
         relaxed_grid.InitValue();
+        dynamic_grid.InitValue();
     }
     // Initiates the simulation, starting by painting in the electrodes and relaxes the grid for N relaxation_loops
     void Start(int relaxation_loops) {
@@ -57,6 +60,8 @@ public:
             UpdateRectangles(relaxed_grid);
         }
         Relax(relaxed_grid, loops, false, false, 0, 0, 0);
+        dynamic_grid = relaxed_grid;
+        dynamic_grid_initialized = true;
         LOG("Total Circle Area:" << CheckAreaTest());
     }
     // Saves the data_handler data to file_path as a json
@@ -65,24 +70,32 @@ public:
     }
     /* Main driver for frame step. Copies potential grid,  */
     void Update(float dt) {
-        // Make copy of potential grid
-        auto circle_grid = relaxed_grid;
-        // (important for steps after the first) set the electric potential of the circle equal to the grid value at the enter
+        // Make a copy of the dynamic grid
+        auto circle_grid = dynamic_grid;
+        // set the electric potential of the circle equal to the grid value at the enter
         for (auto& circle : circles) {
             circle.value = circle_grid[circle.position];
         }
+        // Make sure electrode geometry is stamped onto the grid
+        if (electrode == 0) {
+            UpdateTriangles(circle_grid);
+        } else if (electrode == 1) {
+            UpdateNeedles(circle_grid);
+        } else if (electrode == 2) {
+            UpdateRectangles(circle_grid);
+        }
         // Set the grid's potential values equal to the circle's at select points
         UpdateCircles(circle_grid, circles);
-        for (auto& static_circle : static_circles) {
-            LOG("Static Circle Value:" << static_circle.value);
-        }
-        // Sets the grid's potential values equal to the STATIC circle's circles, or electrodes
         UpdateCircles(circle_grid, static_circles);
+        UpdateChains(circle_grid, chains);
+        UpdateChains(circle_grid, static_chains);
         // Performs potential relaxation loops and define some vars for error checking, can be moved into inputs later
         double error_tolerance = 0.01;
         int min_loops = 10;
         int check_every = 10;
         Relax(circle_grid, loops, true, true, error_tolerance, min_loops, check_every);
+        // Set new grid equal to the dynamic_grid we're tracking
+        dynamic_grid = circle_grid;
         // With new potential calculate the electric field
         auto electric_fields = ComputeElectricField(circle_grid);
         // Save electric field data for later
@@ -1305,7 +1318,7 @@ public:
         auto sec_int = std::chrono::duration_cast<std::chrono::seconds>(time_relax - time_start);
         LOG("Relaxation complete after " << max_loops << " iterations and " << sec_int.count() << " seconds.");
     }
-    
+
     /* Function for relaxing grid; updates grid values based on average of 8 surrounding points; 
     also updates circle positions if forces_circles is true*/
     Value RelaxGrid(const V2<int>& size, Grid<Value>& grid, bool forces_circles) {  
@@ -1524,6 +1537,8 @@ public:
     }
 
 private:
+    Grid<Value> dynamic_grid;
+    bool dynamic_grid_initialized{ false };
     Grid<Value> relaxed_grid;
     std::chrono::steady_clock::time_point time_start;
     int electrode;
