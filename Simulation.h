@@ -26,7 +26,7 @@ class Simulation {
 public:
     V2<int> glob_grid_size;
     bool sim_stopped = false;
-    std::vector<Value> lf_data;
+    std::vector<Value> E_magnitude;
     /* Simulation constructor with a V2 gridsize input. 
     Contains data_handler for width, height, timestep, data, and measurements. 
     Uses "relaxed grid" for holding the potential, initiated at 0.
@@ -40,8 +40,8 @@ public:
         Data<int>{ "width", grid_size.x },
         Data<int>{ "height", grid_size.y },
         Data<int>{ "timestep", 1 },
-        Data<std::vector<std::vector<Value>>>{ "data", std::vector<std::vector<Value>>{} },
-        Data<std::vector<Value>>{ "measurements", std::vector<Value>{} },
+        Data<std::vector<std::vector<Value>>>{ "field_mag", std::vector<std::vector<Value>>{} },
+        Data<std::vector<Value>>{ "resistance_measurements", std::vector<Value>{} },
 
         Data<json>{ "moving_circles", json::array() },
         Data<json>{ "static_circles", json::array() },
@@ -108,11 +108,30 @@ public:
         dynamic_grid = circle_grid;
         // With new potential calculate the electric field
         auto electric_fields = ComputeElectricField(circle_grid);
+
         // Save electric field data for later
-        lf_data = electric_fields.first.GetVector();
-        data_handler.Add("data", lf_data);
+        auto gradient_grid = circle_grid.GetGradient();
+        std::vector<Value> ex;
+        std::vector<Value> ey;
+        ex.reserve(gradient_grid.GetLength());
+        ey.reserve(gradient_grid.GetLength());
+
+        for (int i = 0; i < gradient_grid.GetLength(); ++i) {
+            ex.emplace_back(gradient_grid[i].x);
+            ey.emplace_back(gradient_grid[i].y);
+        }
+        data_handler.Add("field_x", ex);
+        data_handler.Add("field_y", ey);
+        data_handler.Add("potential", circle_grid.GetVector());
+        E_magnitude = electric_fields.first.GetVector();
+        data_handler.Add("field_mag", E_magnitude);
         glob_grid_size = electric_fields.second.GetSize();
-        data_handler.Add("measurements", Measure(glob_grid_size, electric_fields.second));
+        data_handler.Add("resistance_measurements", Measure(glob_grid_size, electric_fields.second));
+        // Save information to the json so that it can be plotted later
+        data_handler.Add("moving_circles", SerializeCircles(circles));
+        data_handler.Add("static_circles", SerializeCircles(static_circles));
+        data_handler.Add("moving_chains", SerializeChains(chains));
+        data_handler.Add("static_chains", SerializeChains(static_chains));
         UpdatePhysics(electric_fields.second, dt);
         //UpdateCollisions();   DISABLED FOR CHAINS
         LOG("Total Circle Area:" << CheckAreaTest());
@@ -137,8 +156,8 @@ public:
             voltage_range[0] += interval;
             voltage_range[1] -= interval;
             voltage = voltage_range[1] - voltage_range[0];
-            data_handler.Add("data", lf_data);
-            data_handler.Add("measurements", Measure(glob_grid_size, electric_fields.second));
+            data_handler.Add("field_mag", E_magnitude);
+            data_handler.Add("resistance_measurements", Measure(glob_grid_size, electric_fields.second));
         }
     }
 
@@ -1588,6 +1607,51 @@ public:
     void AddChain(const Chain& chain) {
         chains.emplace_back(chain);
     }
+    // Function that allows for rapid logging of information regarding circles into the json, logs id, x, y, a, b, potential, and velocity
+    json SerializeCircles(const CircleContainer& container) const {
+        json arr = json::array();
+        for (const auto& c : container) {
+            arr.push_back({
+                {"id", c.id},
+                {"x", c.position.x},
+                {"y", c.position.y},
+                {"a", c.a},
+                {"b", c.b},
+                {"value", c.value},
+                {"vx", c.velocity.x},
+                {"vy", c.velocity.y}
+            });
+        }
+        return arr;
+    }
+    // Function that allows for rapid saving of chains into the json; logs base circle, then all the subcircles
+    json SerializeChains(const ChainContainer& container) const {
+        json arr = json::array();
+        for (const auto& ch : container) {
+            json members = json::array();
+            for (const auto& m : ch.group) {
+                members.push_back({
+                    {"id", m.id},
+                    {"x", m.position.x},
+                    {"y", m.position.y},
+                    {"a", m.a},
+                    {"b", m.b},
+                    {"value", m.value}
+                });
+            }
+
+            arr.push_back({
+                {"id", ch.id},
+                {"x", ch.position.x},
+                {"y", ch.position.y},
+                {"value", ch.value},
+                {"members", members}
+            });
+        }
+        return arr;
+    }
+
+
 
 private:
     Grid<Value> dynamic_grid;
