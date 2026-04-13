@@ -224,7 +224,7 @@ int main() {
 
     sim.Start(loops);
     
-    auto static_frames = 1;
+    
     for (auto i = 0; i < frames; i++) {
         LOG("Computing frame " << i);
         sim.Update(0.1, error, min_loops, check_every);
@@ -233,8 +233,9 @@ int main() {
             break;
         }
     }
-        
-    sim.StaticUpdate(static_frames);
+    
+    // auto static_frames = 1;  
+    // sim.StaticUpdate(static_frames);
 
     sim.Save("output/data.json");
 

@@ -117,8 +117,8 @@ public:
         ey.reserve(gradient_grid.GetLength());
 
         for (int i = 0; i < gradient_grid.GetLength(); ++i) {
-            ex.emplace_back(gradient_grid[i].x);
-            ey.emplace_back(gradient_grid[i].y);
+            ex.emplace_back(-gradient_grid[i].x);
+            ey.emplace_back(-gradient_grid[i].y);
         }
         data_handler.Add("field_x", ex);
         data_handler.Add("field_y", ey);
@@ -1330,23 +1330,6 @@ public:
     }
     /* Runs RelaxGrid for a set number of loops using the input grid, num of loops, and if force_circles.
     Description of RelaxGrid below.*/
-    // void Relax(Grid<Value>& grid, int max_loops, bool force_circles, bool error_check, double tolerance, int min_loops, int check_every) {
-    //     auto size = grid.GetSize();
-    //     for (auto i = 0; i < max_loops; ++i) { // Runs relaxgrid for a set number of times
-    //         Value max_change = RelaxGrid(size, grid, force_circles);
-    //         if (error_check && i + 1 >= min_loops && ((i + 1) % check_every == 0)) {
-    //             if (max_change < tolerance) {
-    //                 auto time_relax = std::chrono::steady_clock::now();
-    //                 auto sec_int = std::chrono::duration_cast<std::chrono::seconds>(time_relax - time_start);
-    //                 LOG("Relaxation complete after " << i + 1 << " iterations and " << sec_int.count() << " seconds.");
-    //                 break;
-    //         }
-    //     }
-    //     }
-    //     auto time_relax = std::chrono::steady_clock::now();
-    //     auto sec_int = std::chrono::duration_cast<std::chrono::seconds>(time_relax - time_start);
-    //     LOG("Relaxation complete after " << max_loops << " iterations and " << sec_int.count() << " seconds.");
-    // }
     void Relax(Grid<Value>& grid, int max_loops, bool force_circles,
                 bool error_check, double tolerance, int min_loops, int check_every) {
         bool converged = false;
@@ -1356,6 +1339,8 @@ public:
 
             if (error_check && i + 1 >= min_loops && ((i + 1) % check_every == 0)) {
                 LOG("Iteration " << i + 1 << ", rel_error = " << rel_error);
+                data_handler.Add("relax_iterations", i);
+                data_handler.Add("relax_error", rel_error);
 
                 if (rel_error < tolerance) {
                     auto time_relax = std::chrono::steady_clock::now();
