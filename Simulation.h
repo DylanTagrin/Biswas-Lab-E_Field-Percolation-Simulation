@@ -36,13 +36,26 @@ public:
     dynamic_grid{ grid_size },
     electrode {electrode}, 
     time_start{std::chrono::steady_clock::now()},
-        data_handler{   // Define some parameters that will be stored in the json
-            Data<int>{ "width", grid_size.x },
-            Data<int>{ "height", grid_size.y },
-            Data<int>{ "timestep", 1 },
-            Data<std::vector<std::vector<Value>>>{ "data", std::vector<std::vector<Value>>{} },
-            Data<std::vector<Value>>{ "measurements", std::vector<Value>{} }
-        } {
+    data_handler{
+        Data<int>{ "width", grid_size.x },
+        Data<int>{ "height", grid_size.y },
+        Data<int>{ "timestep", 1 },
+        Data<std::vector<std::vector<Value>>>{ "data", std::vector<std::vector<Value>>{} },
+        Data<std::vector<Value>>{ "measurements", std::vector<Value>{} },
+
+        Data<json>{ "moving_circles", json::array() },
+        Data<json>{ "static_circles", json::array() },
+        Data<json>{ "moving_chains", json::array() },
+        Data<json>{ "static_chains", json::array() },
+
+        Data<std::vector<std::vector<Value>>>{ "potential", std::vector<std::vector<Value>>{} },
+        Data<std::vector<std::vector<Value>>>{ "field_x", std::vector<std::vector<Value>>{} },
+        Data<std::vector<std::vector<Value>>>{ "field_y", std::vector<std::vector<Value>>{} },
+
+        Data<std::vector<Value>>{ "relax_iterations", std::vector<Value>{} },
+        Data<std::vector<Value>>{ "relax_error", std::vector<Value>{} }
+    }
+        {
         relaxed_grid.InitValue();
         dynamic_grid.InitValue();
     }
@@ -69,7 +82,7 @@ public:
         data_handler.SaveToFile(file_path);
     }
     /* Main driver for frame step. Copies potential grid,  */
-    void Update(float dt) {
+    void Update(float dt, double error, int min_loops, int check_every) {
         // Make a copy of the dynamic grid
         auto circle_grid = dynamic_grid;
         // set the electric potential of the circle equal to the grid value at the enter
@@ -89,11 +102,8 @@ public:
         UpdateCircles(circle_grid, static_circles);
         UpdateChains(circle_grid, chains);
         UpdateChains(circle_grid, static_chains);
-        // Performs potential relaxation loops and define some vars for error checking, can be moved into inputs later
-        double error_tolerance = 0.01;
-        int min_loops = 10;
-        int check_every = 10;
-        Relax(circle_grid, loops, true, true, error_tolerance, min_loops, check_every);
+        // Performs potential relaxation loops
+        Relax(circle_grid, loops, true, true, error, min_loops, check_every);
         // Set new grid equal to the dynamic_grid we're tracking
         dynamic_grid = circle_grid;
         // With new potential calculate the electric field
@@ -1301,39 +1311,75 @@ public:
     }
     /* Runs RelaxGrid for a set number of loops using the input grid, num of loops, and if force_circles.
     Description of RelaxGrid below.*/
-    void Relax(Grid<Value>& grid, int max_loops, bool force_circles, bool error_check, double tolerance, int min_loops, int check_every) {
-        auto size = grid.GetSize();
-        for (auto i = 0; i < max_loops; ++i) { // Runs relaxgrid for a set number of times
-            Value max_change = RelaxGrid(size, grid, force_circles);
+    // void Relax(Grid<Value>& grid, int max_loops, bool force_circles, bool error_check, double tolerance, int min_loops, int check_every) {
+    //     auto size = grid.GetSize();
+    //     for (auto i = 0; i < max_loops; ++i) { // Runs relaxgrid for a set number of times
+    //         Value max_change = RelaxGrid(size, grid, force_circles);
+    //         if (error_check && i + 1 >= min_loops && ((i + 1) % check_every == 0)) {
+    //             if (max_change < tolerance) {
+    //                 auto time_relax = std::chrono::steady_clock::now();
+    //                 auto sec_int = std::chrono::duration_cast<std::chrono::seconds>(time_relax - time_start);
+    //                 LOG("Relaxation complete after " << i + 1 << " iterations and " << sec_int.count() << " seconds.");
+    //                 break;
+    //         }
+    //     }
+    //     }
+    //     auto time_relax = std::chrono::steady_clock::now();
+    //     auto sec_int = std::chrono::duration_cast<std::chrono::seconds>(time_relax - time_start);
+    //     LOG("Relaxation complete after " << max_loops << " iterations and " << sec_int.count() << " seconds.");
+    // }
+    void Relax(Grid<Value>& grid, int max_loops, bool force_circles,
+                bool error_check, double tolerance, int min_loops, int check_every) {
+        bool converged = false;
+        // Run relaxgrid and grab the rel_error after each run
+        for (int i = 0; i < max_loops; ++i) {
+            double rel_error = RelaxGrid(grid.GetSize(), grid, force_circles);
+
             if (error_check && i + 1 >= min_loops && ((i + 1) % check_every == 0)) {
-                if (max_change < tolerance) {
+                LOG("Iteration " << i + 1 << ", rel_error = " << rel_error);
+
+                if (rel_error < tolerance) {
                     auto time_relax = std::chrono::steady_clock::now();
                     auto sec_int = std::chrono::duration_cast<std::chrono::seconds>(time_relax - time_start);
-                    LOG("Relaxation complete after " << i + 1 << " iterations and " << sec_int.count() << " seconds.");
+                    LOG("Relaxation complete after " << i + 1
+                        << " iterations and " << sec_int.count()
+                        << " seconds.");
+                    converged = true;
                     break;
+                }
             }
         }
+
+        if (!converged) {
+            auto time_relax = std::chrono::steady_clock::now();
+            auto sec_int = std::chrono::duration_cast<std::chrono::seconds>(time_relax - time_start);
+            LOG("Relaxation reached max iterations after "
+                << max_loops << " iterations and "
+                << sec_int.count() << " seconds.");
         }
-        auto time_relax = std::chrono::steady_clock::now();
-        auto sec_int = std::chrono::duration_cast<std::chrono::seconds>(time_relax - time_start);
-        LOG("Relaxation complete after " << max_loops << " iterations and " << sec_int.count() << " seconds.");
     }
+
 
     /* Function for relaxing grid; updates grid values based on average of 8 surrounding points; 
     also updates circle positions if forces_circles is true*/
-    Value RelaxGrid(const V2<int>& size, Grid<Value>& grid, bool forces_circles) {  
+    double RelaxGrid(const V2<int>& size, Grid<Value>& grid, bool forces_circles) {
+        // Initial rel error calc and make a copy of the old grid for reference
         auto old_grid = grid;
-        auto max_change = static_cast<Value>(0);
-        #pragma omp parallel for
-        for (auto i = 1; i < size.x - 1; ++i) {
+        double sum_abs_diff = 0.0;
+        double sum_abs_new = 0.0;
+        // Set up parallelization to keep diff and new as separate objs in each run so that the sum can be performed more carefully
+        #pragma omp parallel for reduction(+:sum_abs_diff,sum_abs_new)
+        for (int i = 1; i < size.x - 1; ++i) {
             auto x_last = i - 1;
             auto x_next = i + 1;
-            for (auto j = 1; j < size.y - 1; ++j) {
-                auto y_part = size.x * j;   // y_part is the starting index of the jth row, reminder grid is a 1D array so to access (i,j) we need to do y_part + i
+            // scan for each x and y value, make obj for indicies in x and y axis
+            for (int j = 1; j < size.y - 1; ++j) {
+                auto y_part = size.x * j;
                 auto y_index_minus = y_part - size.x;
                 auto y_index_plus = y_part + size.x;
-                grid[y_part + i] = (    // average of 8 surrounding points
-                      old_grid[y_index_minus + x_last]
+
+                Value new_value =   // average of 8 surrounding points
+                    ( old_grid[y_index_minus + x_last]
                     + old_grid[y_index_minus + i]
                     + old_grid[y_index_minus + x_next]
                     + old_grid[y_part + x_last]
@@ -1341,11 +1387,15 @@ public:
                     + old_grid[y_index_plus + x_last]
                     + old_grid[y_index_plus + i]
                     + old_grid[y_index_plus + x_next]
-                ) / static_cast<Value>(8.0);
-                max_change = std::max(max_change, std::abs(grid[y_part + i] - old_grid[y_part + i]));
-
+                    ) / static_cast<Value>(8.0);
+                // increase the sum difference of the potentials between old and new
+                sum_abs_diff += std::abs(static_cast<double>(new_value - old_grid[y_part + i]));
+                sum_abs_new  += std::abs(static_cast<double>(new_value));
+                // change the original grid point by the new value
+                grid[y_part + i] = new_value;
             }
         }
+
         if (electrode == 0) {
             UpdateTriangles(grid);
         }
@@ -1354,16 +1404,19 @@ public:
         }
         else if (electrode == 2) {
             UpdateRectangles(grid);
-        } 
+        }
+
         if (forces_circles) {
             UpdateCircles(grid, circles);
             UpdateCircles(grid, static_circles);
             UpdateChains(grid, chains);
             UpdateChains(grid, static_chains);
         }
-        return max_change;
-        
+
+        return sum_abs_diff / (sum_abs_new + 1e-12);
     }
+
+
 
     //V2<Value> ComputeForceOnCircle(const Grid<Value>& electric_field_squared, const Circle& circle) const {
     //    V2<Value> force;

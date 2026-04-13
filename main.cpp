@@ -9,6 +9,10 @@ int main() {
     int loops;
     int electrode_type;
     int frames; 
+    double error;
+    int min_loops;
+    int check_every;
+    
 
     // Short dialogue tree to get simulation inputs from the user
     LOG("Hello! Welcome to the Amlan Biswas Lab's Dielectrophoresis simulation.");
@@ -36,6 +40,17 @@ int main() {
         LOG("Invalid input, defaulting to triangle electrodes.");
         electrode_type = 0;
     }
+    LOG_("What should the min loops per relaxation run be? ");
+    std::cin >> min_loops;
+    LOG("Confirmation: You have input " << min_loops << " as the min loops per relaxation run.");
+    LOG_("What should the relative error we should check be? Recommended is 0.00001. Input a double: ");
+    std::cin >> error;
+    LOG("Confirmation: You have input " << error << " as the relative error to check for.");
+
+
+
+    // We can have the dialogue tree define these vars or just set them as constants here
+    check_every = 20;
 
     // Initialize Simulation with grid size (800, 600)
     Simulation sim(V2<int>{ 800, 600 }, electrode_type);
@@ -208,13 +223,11 @@ int main() {
 
 
     sim.Start(loops);
-
-
     
     auto static_frames = 1;
     for (auto i = 0; i < frames; i++) {
         LOG("Computing frame " << i);
-        sim.Update(0.1);
+        sim.Update(0.1, error, min_loops, check_every);
         // check if junction closed (static circles on opposite electrodes collided; switch to static frame)
         if (sim.sim_stopped) {
             break;
