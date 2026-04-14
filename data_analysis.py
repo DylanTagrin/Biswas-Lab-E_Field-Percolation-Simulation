@@ -78,17 +78,27 @@ def draw_electrodes(ax, electrodes):
             patches.append(rect)
 
         elif shape == "needle":
-            if "edge_points" in e and len(e["edge_points"]) > 1:
-                pts = np.array(e["edge_points"], dtype=float)
-                line, = ax.plot(pts[:, 0], pts[:, 1], linewidth=2.0)
-                line_artists.append(line)
-            else:
-                # fallback if edge_points were not saved
-                pts = np.array([e["v1"], e["v2"], e["v3"]], dtype=float)
-                poly = Polygon(pts, closed=True, fill=False, linewidth=2.0)
-                ax.add_patch(poly)
-                patches.append(poly)
+            v1 = np.array(e["v1"], dtype=float)
+            v2 = np.array(e["v2"], dtype=float)
+            v3 = np.array(e["v3"], dtype=float)
+            cp = np.array(e["cp"], dtype=float)
 
+            t = np.linspace(0.0, 1.0, 200)
+
+            # quadratic Bezier from v1 to v3 with control point cp
+            curve1 = ((1 - t)[:, None] ** 2) * v1 + 2 * ((1 - t)[:, None] * t[:, None]) * cp + (t[:, None] ** 2) * v3
+
+            # quadratic Bezier from v2 to v3 with control point cp
+            curve2 = ((1 - t)[:, None] ** 2) * v2 + 2 * ((1 - t)[:, None] * t[:, None]) * cp + (t[:, None] ** 2) * v3
+
+            # straight edge from v1 to v2
+            edge = np.vstack([v1, v2])
+
+            line1, = ax.plot(curve1[:, 0], curve1[:, 1], linewidth=2.0)
+            line2, = ax.plot(curve2[:, 0], curve2[:, 1], linewidth=2.0)
+            line3, = ax.plot(edge[:, 0], edge[:, 1], linewidth=2.0)
+
+            line_artists.extend([line1, line2, line3])
     return patches, line_artists
 
 
@@ -216,6 +226,147 @@ def animate_potential(data, output_path="output/potential_animation.mp4"):
 
 
 def animate_field_quiver(data, output_path="output/efield_quiver_animation.mp4",
+                         stride=20):
+    field_x = data["field_x"]
+    field_y = data["field_y"]
+    electrodes = data.get("electrodes", [])
+
+    n_frames, height, width = field_x.shape
+
+    y, x = np.mgrid[0:height:stride, 0:width:stride]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect("equal")
+    ax.set_title("Electric Field Direction vs Time")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+
+    draw_electrodes(ax, electrodes)
+
+    def normalize(u, v, eps=1e-12):
+        mag = np.sqrt(u**2 + v**2)
+
+        u_norm = np.zeros_like(u, dtype=float)
+        v_norm = np.zeros_like(v, dtype=float)
+
+        np.divide(u, mag, out=u_norm, where=mag > eps)
+        np.divide(v, mag, out=v_norm, where=mag > eps)
+
+        return u_norm, v_norm
+
+    u0 = field_x[0, ::stride, ::stride]
+    v0 = field_y[0, ::stride, ::stride]
+    u0, v0 = normalize(u0, v0)
+
+    q = ax.quiver(
+        x, y, u0, v0,
+        angles="xy",
+        scale_units="xy",
+        scale=0.07,      # smaller scale = longer arrows
+        pivot="mid",
+        width=0.0025
+    )
+
+    title = ax.text(
+        0.02, 0.98, "", transform=ax.transAxes,
+        ha="left", va="top"
+    )
+
+    def update(frame_idx):
+        u = field_x[frame_idx, ::stride, ::stride]
+        v = field_y[frame_idx, ::stride, ::stride]
+        u, v = normalize(u, v)
+
+        q.set_UVC(u, v)
+        title.set_text(f"Frame {frame_idx}")
+        return [q, title]
+
+    ani = animation.FuncAnimation(
+        fig, update, frames=n_frames, interval=1000 // FPS, blit=False
+    )
+    ani.save(output_path, writer=animation.FFMpegWriter(fps=FPS))
+    plt.close(fig)
+
+
+def plot_resistance_vs_time(data, output_path="output/resistance_vs_time.png"):
+    r = np.asarray(data.get("resistance_measurements", []), dtype=float)
+
+    if r.size == 0:
+        return
+
+    frames = np.arange(len(r))
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(frames, r)
+    ax.set_title("Resistance vs Time")
+    ax.set_xlabel("Frame")
+    ax.set_ylabel("Resistance")
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+def split_relax_runs(relax_iterations, relax_error):
+    """
+    Split flat relax history into one list per relaxation call.
+    A new run starts whenever iteration count drops.
+    """
+    if len(relax_iterations) != len(relax_error):
+        raise ValueError("relax_iterations and relax_error must have the same length")
+
+    runs = []
+    current_iters = []
+    current_errs = []
+
+    prev_iter = None
+    for it, err in zip(relax_iterations, relax_error):
+        if prev_iter is not None and it < prev_iter:
+            runs.append((current_iters, current_errs))
+            current_iters = []
+            current_errs = []
+
+        current_iters.append(it)
+        current_errs.append(err)
+        prev_iter = it
+
+    if current_iters:
+        runs.append((current_iters, current_errs))
+
+    return runs
+
+
+def plot_relax_error_decay(data, output_path="output/relax_error_decay.png",
+                           max_runs=None):
+    relax_iterations = data.get("relax_iterations", [])
+    relax_error = data.get("relax_error", [])
+
+    if not relax_iterations or not relax_error:
+        print("No relax history found.")
+        return
+
+    runs = split_relax_runs(relax_iterations, relax_error)
+
+    if max_runs is not None:
+        runs = runs[:max_runs]
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    for run_idx, (iters, errs) in enumerate(runs):
+        if len(iters) == 0:
+            continue
+        ax.plot(iters, errs, label=f"Run {run_idx}")
+
+    ax.set_title("Relative Error Decay per Relaxation Run")
+    ax.set_xlabel("Relaxation Iteration")
+    ax.set_ylabel("Relative Error")
+    ax.set_yscale("log")
+    ax.legend(fontsize=8, ncol=2)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+def animate_field_quiver_unnormalized(data, output_path="output/efield_quiver_animation.mp4",
                          stride=20, scale=None):
     field_x = data["field_x"]
     field_y = data["field_y"]
@@ -261,33 +412,15 @@ def animate_field_quiver(data, output_path="output/efield_quiver_animation.mp4",
     ani.save(output_path, writer=animation.FFMpegWriter(fps=FPS))
     plt.close(fig)
 
-
-def plot_resistance_vs_time(data, output_path="output/resistance_vs_time.png"):
-    r = np.asarray(data.get("resistance_measurements", []), dtype=float)
-
-    if r.size == 0:
-        return
-
-    frames = np.arange(len(r))
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(frames, r)
-    ax.set_title("Resistance vs Time")
-    ax.set_xlabel("Frame")
-    ax.set_ylabel("Resistance")
-    fig.savefig(output_path, dpi=150)
-    plt.close(fig)
-
-
 def main():
     data = load_sim_data(DATA_PATH)
 
-    animate_circles(data)
-    animate_potential(data)
-
-    # Uncomment once you want the field animation too
-    # animate_field_quiver(data, stride=25)
-
-    plot_resistance_vs_time(data)
+    # animate_circles(data)
+    # animate_potential(data)
+    animate_field_quiver(data, stride=20)
+    # animate_field_quiver_unnormalized(data, stride=25)
+    # plot_relax_error_decay(data)
+    # plot_resistance_vs_time(data)
 
 
 if __name__ == "__main__":
