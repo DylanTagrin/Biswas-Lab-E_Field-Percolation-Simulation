@@ -10,3 +10,22 @@ April 2026: Extensive documentation on how every function behaves
 Added a dialogue tree to main.cpp to allow for custom imputs and to stop having to compile the entire simulation for small parameter changes
 Added clock time calculations that report how long the simulation has been running for after each relax step
 Added modifications to the error calcuation formula in Relax, basing it on global change
+
+04/13/2026:
+Massively expanded which data is logged in the json {
+    width, height, timestep, E field mag, resistance, circle positions, circle velocities
+    potential field, E field gradient, electrode type, electrode position
+}
+Added 'warm start' to potential grid which stores the previous grid for next grid's relaxation
+Added new python file data_analysis.py that can plot the data
+
+04/14/2026:
+Added several functions to the analysis file that plots circle animation, efield animation,
+    magnitude of potential animation, error vs #runs plot, resistance vs time plot (note:
+    resistance calculations are very bare right now)
+Fixed .gitignore file so mp4s and plots wont be pushed to github (was pushing 50 mb files before)
+
+
+
+
+

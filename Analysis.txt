@@ -10,6 +10,8 @@ One method to make sure far reaching changes still affect regions of small chang
 a grid point to "skip" some checks so that only during every i^n loops are these grid points
 relaxed, with n being the number of times we see negligible change.
 
+
+
 04/10/2026
 Now with better runtime calculations it can be easily determined that two main sources of computation
 draw for the simulation are the relaxation steps when they are over 1000 iterations (can be several minutes)
@@ -24,3 +26,27 @@ and circles as the circles move or the voltages in the electrodes change (ie fro
 One potential yet hard to impliment solution to this would be to check every grid point
 1 + i points away from the sources of electric potential change since at i + 2 grid points
 away there is no change.
+
+
+
+04/14/2026
+
+Analysis of stopping the relaxation loops early based on "relative error":
+
+Relative error is measured by the sumation of the difference between the old grid potential and 
+the new one divided by the sum of the new one (plus very small number to prevent divide by zero).
+When starting a new grid the relative error is quite high where after 100 iterations it is about
+0.002, dropping 0.0002 every 20 iterations. After 1000 iterations it is at 0.0004 and after 5000
+iterations the rel error was 0.000122, this value is significant as the previous author noted that
+5000 relaxation loops was enough to reliabily get good results. As such I'll start off by 
+taking the error of 0.000122 to be our targeted error in general. 
+When the next loops starts after "dt" (the time the circles move under this force.) the error
+increases and after 100 loops it is at 0.000150, this is noteworthy as while the error increases, 
+it is still very close to the original value, meaning convergence can happen quite quickly. 
+As chains begin to form the number of iterations needed for error convergence to occur greatly 
+reduces.
+When using a targeted error of 0.00001 (an order of magnitude less than after the first 5000) 
+it takes as few as 200 iterations to converge back to 0.00001 after reaching it the first time.
+However there are periods where it takes 1000 - 2500 relaxation loops, meaning this method is 
+useful for ensuring that frames where a large change happens gets relaxed in a brisk amount of
+time. In other words and error of 0.00001 makes for a good test error.
