@@ -43,4 +43,4 @@
 output/
 *.mp4
 *.png
-*.json
+output/*.json
