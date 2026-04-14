@@ -40,6 +40,11 @@
 # debug information files
 *.dwo
 
+# Sandbox
+Sandbox/
+
+# Simulation output
+saved_data/
 output/
 *.mp4
 *.png
