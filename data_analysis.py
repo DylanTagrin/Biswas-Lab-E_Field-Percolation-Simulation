@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LogNorm, Normalize
 from matplotlib.patches import Ellipse, Polygon, Rectangle
 
 
@@ -16,7 +16,7 @@ DPI = 150
 
 
 # -----------------------------
-# Data loading and validation
+# Data loading
 # -----------------------------
 
 def load_sim_data(path: Path):
@@ -26,7 +26,7 @@ def load_sim_data(path: Path):
     width = int(j["width"])
     height = int(j["height"])
 
-    out = {
+    data = {
         "width": width,
         "height": height,
         "moving_circles": j.get("moving_circles", []),
@@ -41,44 +41,43 @@ def load_sim_data(path: Path):
     }
 
     if "potential" in j:
-        potential = np.asarray(j["potential"], dtype=float)
-        out["potential"] = potential.reshape(len(potential), height, width)
+        arr = np.asarray(j["potential"], dtype=float)
+        data["potential"] = arr.reshape(len(arr), height, width)
 
     if "field_mag" in j:
-        field_mag = np.asarray(j["field_mag"], dtype=float)
-        out["field_mag"] = field_mag.reshape(len(field_mag), height, width)
+        arr = np.asarray(j["field_mag"], dtype=float)
+        data["field_mag"] = arr.reshape(len(arr), height, width)
 
     if "field_x" in j:
-        field_x = np.asarray(j["field_x"], dtype=float)
-        out["field_x"] = field_x.reshape(len(field_x), height, width)
+        arr = np.asarray(j["field_x"], dtype=float)
+        data["field_x"] = arr.reshape(len(arr), height, width)
 
     if "field_y" in j:
-        field_y = np.asarray(j["field_y"], dtype=float)
-        out["field_y"] = field_y.reshape(len(field_y), height, width)
+        arr = np.asarray(j["field_y"], dtype=float)
+        data["field_y"] = arr.reshape(len(arr), height, width)
 
-    return out
+    return data
 
 
 def get_frame_count(data):
-    candidates = []
+    counts = []
+
     for key in ["potential", "field_mag", "field_x", "field_y"]:
-        arr = data.get(key)
-        if arr is not None:
-            candidates.append(arr.shape[0])
+        if key in data:
+            counts.append(data[key].shape[0])
 
     for key in ["moving_circles", "static_circles", "moving_chains", "static_chains"]:
-        seq = data.get(key)
-        if seq:
-            candidates.append(len(seq))
+        if data.get(key):
+            counts.append(len(data[key]))
 
-    if not candidates:
+    if not counts:
         raise ValueError("No frame-based data found in JSON.")
 
-    return min(candidates)
+    return min(counts)
 
 
 # -----------------------------
-# Styling and axes helpers
+# Basic plot helpers
 # -----------------------------
 
 def ensure_output_dir(path):
@@ -111,479 +110,338 @@ def add_frame_label(ax, frame_idx, extra_text=None, color="white"):
 
 
 # -----------------------------
-# Electrode drawing
+# Heatmap tuning
 # -----------------------------
+# Use these presets directly, or make your own.
+# mode:
+#   "full"       -> true global min/max across all frames
+#   "percentile" -> clip outliers using low/high percentiles
+#   "log"        -> log scaling for wide dynamic range
 
-def electrode_style(value):
-    if value > 0:
-        return {"color": "red", "linewidth": 2.0, "alpha": 0.9}
-    if value < 0:
-        return {"color": "cyan", "linewidth": 2.0, "alpha": 0.9}
-    return {"color": "white", "linewidth": 2.0, "alpha": 0.9}
+def make_heatmap_settings(mode="percentile", cmap="inferno", low=1, high=99, alpha=1.0):
+    return {
+        "mode": mode,
+        "cmap": cmap,
+        "low": low,
+        "high": high,
+        "alpha": alpha,
+    }
 
+
+def make_norm(stack, settings):
+    mode = settings.get("mode", "percentile")
+    low = settings.get("low", 1)
+    high = settings.get("high", 99)
+
+    values = np.asarray(stack, dtype=float)
+    values = values[np.isfinite(values)]
+
+    if values.size == 0:
+        return Normalize(vmin=0.0, vmax=1.0, clip=True)
+
+    if mode == "full":
+        return Normalize(vmin=float(values.min()), vmax=float(values.max()), clip=True)
+
+    if mode == "percentile":
+        vmin = float(np.percentile(values, low))
+        vmax = float(np.percentile(values, high))
+        if vmax <= vmin:
+            vmax = vmin + 1.0
+        return Normalize(vmin=vmin, vmax=vmax, clip=True)
+
+    if mode == "log":
+        values = values[values > 0]
+        if values.size == 0:
+            return LogNorm(vmin=1e-12, vmax=1.0, clip=True)
+        vmin = max(float(np.percentile(values, low)), 1e-12)
+        vmax = max(float(np.percentile(values, high)), vmin * 10.0)
+        return LogNorm(vmin=vmin, vmax=vmax, clip=True)
+
+    raise ValueError(f"Unknown heatmap mode: {mode}")
+
+
+def draw_heatmap(ax, frame2d, norm, settings):
+    return ax.imshow(
+        frame2d,
+        origin="lower",
+        aspect="auto",
+        cmap=settings.get("cmap", "inferno"),
+        norm=norm,
+        alpha=settings.get("alpha", 1.0),
+        zorder=1,
+    )
+
+
+# -----------------------------
+# Geometry drawing
+# -----------------------------
 
 def draw_electrodes(ax, electrodes):
     for elec in electrodes:
+        value = elec.get("value", 0.0)
+        if value > 0:
+            color = "red"
+        elif value < 0:
+            color = "cyan"
+        else:
+            color = "white"
+
         shape = elec["shape"]
-        style = electrode_style(elec.get("value", 0.0))
 
         if shape == "triangle":
             pts = np.array([elec["v1"], elec["v2"], elec["v3"]], dtype=float)
-            poly = Polygon(pts, closed=True, fill=False, **style)
-            ax.add_patch(poly)
+            ax.add_patch(Polygon(pts, closed=True, fill=False, linewidth=2.0, color=color, alpha=0.9))
 
         elif shape == "rectangle":
             pos = elec["position"]
             size = elec["size"]
-            rect = Rectangle(
-                xy=(pos[0], pos[1]),
-                width=size[0],
-                height=size[1],
-                fill=False,
-                **style,
-            )
-            ax.add_patch(rect)
+            ax.add_patch(Rectangle((pos[0], pos[1]), size[0], size[1], fill=False,
+                                   linewidth=2.0, color=color, alpha=0.9))
 
         elif shape == "needle":
-            if "edge_points" in elec and elec["edge_points"]:
-                edge = np.asarray(elec["edge_points"], dtype=float)
-                if edge.ndim == 2 and edge.shape[1] == 2:
-                    ax.plot(edge[:, 0], edge[:, 1], linestyle="", marker=".", markersize=1.0,
-                            color=style["color"], alpha=0.7)
-                    continue
-
             v1 = np.array(elec["v1"], dtype=float)
             v2 = np.array(elec["v2"], dtype=float)
             v3 = np.array(elec["v3"], dtype=float)
             cp = np.array(elec["cp"], dtype=float)
-
             t = np.linspace(0.0, 1.0, 300)
             curve1 = ((1 - t)[:, None] ** 2) * v1 + 2 * ((1 - t)[:, None] * t[:, None]) * cp + (t[:, None] ** 2) * v3
             curve2 = ((1 - t)[:, None] ** 2) * v2 + 2 * ((1 - t)[:, None] * t[:, None]) * cp + (t[:, None] ** 2) * v3
             edge = np.vstack([v1, v2])
+            ax.plot(curve1[:, 0], curve1[:, 1], linewidth=2.0, color=color, alpha=0.9)
+            ax.plot(curve2[:, 0], curve2[:, 1], linewidth=2.0, color=color, alpha=0.9)
+            ax.plot(edge[:, 0], edge[:, 1], linewidth=2.0, color=color, alpha=0.9)
 
-            ax.plot(curve1[:, 0], curve1[:, 1], **style)
-            ax.plot(curve2[:, 0], curve2[:, 1], **style)
-            ax.plot(edge[:, 0], edge[:, 1], **style)
+
+def draw_circle(ax, circle, color="deepskyblue", linestyle="-", linewidth=1.8, show_center=False):
+    if not all(k in circle for k in ("x", "y", "a", "b")):
+        return
+
+    ax.add_patch(Ellipse(
+        xy=(circle["x"], circle["y"]),
+        width=2 * circle["a"],
+        height=2 * circle["b"],
+        fill=False,
+        edgecolor=color,
+        linestyle=linestyle,
+        linewidth=linewidth,
+        alpha=0.98,
+        zorder=4,
+    ))
+
+    if show_center:
+        ax.plot(circle["x"], circle["y"], "o", color=color, markersize=2.5, zorder=5)
 
 
-# -----------------------------
-# Circle and chain overlays
-# -----------------------------
+def draw_all_circles(ax, data, frame_idx, show_centers=False):
+    for circle in data.get("moving_circles", [])[frame_idx]:
+        draw_circle(ax, circle, color="deepskyblue", linestyle="-", linewidth=1.8, show_center=show_centers)
 
-def _iter_all_circle_dicts(data, frame_idx):
-    for c in data.get("moving_circles", [])[frame_idx]:
-        yield c, "moving"
-
-    for c in data.get("static_circles", [])[frame_idx]:
-        yield c, "static"
+    for circle in data.get("static_circles", [])[frame_idx]:
+        draw_circle(ax, circle, color="yellow", linestyle="--", linewidth=2.0, show_center=show_centers)
 
     for chain in data.get("moving_chains", [])[frame_idx]:
         for member in chain.get("members", []):
-            yield member, "moving_chain"
+            draw_circle(ax, member, color="lime", linestyle="-", linewidth=1.5, show_center=show_centers)
 
     for chain in data.get("static_chains", [])[frame_idx]:
         for member in chain.get("members", []):
-            yield member, "static_chain"
-
-
-def circle_style(kind):
-    if kind == "moving":
-        return {"linestyle": "-", "linewidth": 1.6, "edgecolor": "white", "alpha": 0.95}
-    if kind == "static":
-        return {"linestyle": "--", "linewidth": 2.0, "edgecolor": "yellow", "alpha": 0.95}
-    if kind == "moving_chain":
-        return {"linestyle": "-", "linewidth": 1.2, "edgecolor": "lime", "alpha": 0.90}
-    if kind == "static_chain":
-        return {"linestyle": "--", "linewidth": 1.8, "edgecolor": "orange", "alpha": 0.95}
-    return {"linestyle": "-", "linewidth": 1.5, "edgecolor": "white", "alpha": 0.95}
-
-
-def draw_circle_overlay(ax, data, frame_idx, show_centers=False, show_ids=False):
-    for circle_dict, kind in _iter_all_circle_dicts(data, frame_idx):
-        style = circle_style(kind)
-        patch = Ellipse(
-            xy=(circle_dict["x"], circle_dict["y"]),
-            width=2 * circle_dict["a"],
-            height=2 * circle_dict["b"],
-            fill=False,
-            linestyle=style["linestyle"],
-            linewidth=style["linewidth"],
-            edgecolor=style["edgecolor"],
-            alpha=style["alpha"],
-        )
-        ax.add_patch(patch)
-
-        if show_centers:
-            ax.plot(circle_dict["x"], circle_dict["y"], marker="o", markersize=2.0,
-                    color=style["edgecolor"], alpha=style["alpha"])
-
-        if show_ids and "id" in circle_dict:
-            ax.text(circle_dict["x"], circle_dict["y"], str(circle_dict["id"]),
-                    fontsize=6, color=style["edgecolor"], ha="center", va="center")
+            draw_circle(ax, member, color="orange", linestyle="--", linewidth=1.9, show_center=show_centers)
 
 
 # -----------------------------
-# Scalar field helpers
+# Animation shell
 # -----------------------------
 
-def compute_percentile_limits(stack, low=1.0, high=99.0):
-    arr = np.asarray(stack, dtype=float)
-    finite = arr[np.isfinite(arr)]
-    if finite.size == 0:
-        return 0.0, 1.0
-    vmin = np.percentile(finite, low)
-    vmax = np.percentile(finite, high)
-    if vmax <= vmin:
-        vmax = vmin + 1.0
-    return float(vmin), float(vmax)
-
-
-def get_scalar_norm(stack, mode="linear", low_pct=1.0, high_pct=99.0):
-    vmin, vmax = compute_percentile_limits(stack, low=low_pct, high=high_pct)
-
-    if mode == "log":
-        positive = np.asarray(stack, dtype=float)
-        positive = positive[np.isfinite(positive) & (positive > 0)]
-        if positive.size == 0:
-            return None, vmin, vmax
-        vmin = max(float(np.percentile(positive, low_pct)), 1e-12)
-        vmax = max(float(np.percentile(positive, high_pct)), vmin * 10.0)
-        return LogNorm(vmin=vmin, vmax=vmax), vmin, vmax
-
-    return None, vmin, vmax
-
-
-def draw_scalar_field(ax, frame2d, title, cmap="viridis", norm_mode="linear",
-                      reference_stack=None, colorbar_label=None):
-    stack = frame2d[None, ...] if reference_stack is None else reference_stack
-    norm, vmin, vmax = get_scalar_norm(stack, mode=norm_mode)
-
-    im_kwargs = {
-        "origin": "lower",
-        "aspect": "auto",
-        "cmap": cmap,
-    }
-
-    if norm is not None:
-        im_kwargs["norm"] = norm
-    else:
-        im_kwargs["vmin"] = vmin
-        im_kwargs["vmax"] = vmax
-
-    im = ax.imshow(frame2d, **im_kwargs)
-    ax.set_title(title)
-
-    if colorbar_label is not None:
-        cbar = plt.colorbar(im, ax=ax)
-        cbar.set_label(colorbar_label)
-
-    return im
-
-
-# -----------------------------
-# Reusable frame rendering helpers
-# -----------------------------
-
-def render_circle_frame(ax, data, frame_idx, title="Circle Positions vs Time",
-                        show_centers=False, show_ids=False):
-    width = data["width"]
-    height = data["height"]
-    setup_axes(ax, width, height, title)
-    draw_electrodes(ax, data.get("electrodes", []))
-    draw_circle_overlay(ax, data, frame_idx, show_centers=show_centers, show_ids=show_ids)
-    add_frame_label(ax, frame_idx, color="white")
-
-
-def render_scalar_with_circles(ax, data, scalar_key, frame_idx, title,
-                               cmap="viridis", norm_mode="linear",
-                               colorbar_label=None, show_centers=False,
-                               add_colorbar=False):
-    width = data["width"]
-    height = data["height"]
-    setup_axes(ax, width, height, title)
-
-    stack = data[scalar_key]
-    im = draw_scalar_field(
-        ax,
-        stack[frame_idx],
-        title=title,
-        cmap=cmap,
-        norm_mode=norm_mode,
-        reference_stack=stack,
-        colorbar_label=colorbar_label if add_colorbar else None,
-    )
-
-    draw_electrodes(ax, data.get("electrodes", []))
-    draw_circle_overlay(ax, data, frame_idx, show_centers=show_centers)
-    add_frame_label(ax, frame_idx, color="white")
-    return im
-
-
-# -----------------------------
-# Generic animation writer
-# -----------------------------
-
-def animate_redraw(draw_frame_func, n_frames, output_path, figsize=FIGSIZE, fps=FPS, dpi=DPI):
+def save_animation(draw_frame, n_frames, output_path):
     ensure_output_dir(output_path)
-
-    fig, ax = plt.subplots(figsize=figsize)
+    fig, ax = plt.subplots(figsize=FIGSIZE)
 
     def update(frame_idx):
         ax.clear()
-        artists = draw_frame_func(ax, frame_idx)
-        if artists is None:
-            artists = []
-        return artists
+        draw_frame(ax, frame_idx)
+        return []
 
-    ani = animation.FuncAnimation(
-        fig,
-        update,
-        frames=n_frames,
-        interval=1000 // fps,
-        blit=False,
-    )
-    ani.save(output_path, writer=animation.FFMpegWriter(fps=fps), dpi=dpi)
+    ani = animation.FuncAnimation(fig, update, frames=n_frames, interval=1000 // FPS, blit=False)
+    ani.save(output_path, writer=animation.FFMpegWriter(fps=FPS), dpi=DPI)
     plt.close(fig)
 
 
 # -----------------------------
-# Plotting / animation entry points
+# Main plot types
 # -----------------------------
 
-def animate_circles(data, output_path="output/circles_animation.mp4",
-                    show_centers=False, show_ids=False):
+def animate_circles(data, output_path="output/circles_animation.mp4"):
     n_frames = get_frame_count(data)
+    width = data["width"]
+    height = data["height"]
 
     def draw(ax, frame_idx):
-        render_circle_frame(
-            ax,
-            data,
-            frame_idx,
-            title="Circle Positions vs Time",
-            show_centers=show_centers,
-            show_ids=show_ids,
-        )
-        return []
+        setup_axes(ax, width, height, "Circle Positions vs Time")
+        draw_electrodes(ax, data.get("electrodes", []))
+        draw_all_circles(ax, data, frame_idx)
+        add_frame_label(ax, frame_idx)
 
-    animate_redraw(draw, n_frames=n_frames, output_path=output_path)
+    save_animation(draw, n_frames, output_path)
 
 
-def animate_potential(data, output_path="output/potential_animation.mp4",
-                      cmap="coolwarm"):
+def animate_potential(data, output_path="output/potential_animation.mp4", heatmap=None):
+    if heatmap is None:
+        heatmap = make_heatmap_settings(mode="full", cmap="coolwarm")
+
     potential = data["potential"]
-    n_frames = potential.shape[0]
+    n_frames, height, width = potential.shape
+    norm = make_norm(potential, heatmap)
 
-    def draw(ax, frame_idx):
-        render_scalar_with_circles(
-            ax,
-            data,
-            scalar_key="potential",
-            frame_idx=frame_idx,
-            title="Potential + Circles vs Time",
-            cmap=cmap,
-            norm_mode="linear",
-            colorbar_label="Potential",
-            add_colorbar=True,
-        )
-        return []
-
-    animate_redraw(draw, n_frames=n_frames, output_path=output_path)
-
-
-def animate_fieldmag_with_circles(data, output_path="output/fieldmag_with_circles.mp4",
-                                  cmap="inferno", norm_mode="log"):
-    field_mag = data["field_mag"]
-    n_frames = field_mag.shape[0]
-
-    def draw(ax, frame_idx):
-        render_scalar_with_circles(
-            ax,
-            data,
-            scalar_key="field_mag",
-            frame_idx=frame_idx,
-            title="Electric Field Magnitude + Circles vs Time",
-            cmap=cmap,
-            norm_mode=norm_mode,
-            colorbar_label="|E|",
-            add_colorbar=True,
-        )
-        return []
-
-    animate_redraw(draw, n_frames=n_frames, output_path=output_path)
-
-
-def plot_fieldmag_frame(data, frame_idx=-1,
-                        output_path="output/fieldmag_frame.png",
-                        cmap="inferno", norm_mode="log"):
     ensure_output_dir(output_path)
-    n_frames = data["field_mag"].shape[0]
-    if frame_idx < 0:
-        frame_idx = n_frames + frame_idx
-
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    render_scalar_with_circles(
-        ax,
-        data,
-        scalar_key="field_mag",
-        frame_idx=frame_idx,
-        title="Electric Field Magnitude + Circles",
-        cmap=cmap,
-        norm_mode=norm_mode,
-        colorbar_label="|E|",
-        add_colorbar=True,
-    )
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=DPI)
+    im = draw_heatmap(ax, potential[0], norm, heatmap)
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label("Potential")
+
+    def update(frame_idx):
+        ax.clear()
+        setup_axes(ax, width, height, "Potential + Circles vs Time")
+        draw_heatmap(ax, potential[frame_idx], norm, heatmap)
+        draw_electrodes(ax, data.get("electrodes", []))
+        draw_all_circles(ax, data, frame_idx)
+        add_frame_label(ax, frame_idx, extra_text=f"{heatmap['mode']} [{heatmap['low']}, {heatmap['high']}]")
+        return []
+
+    ani = animation.FuncAnimation(fig, update, frames=n_frames, interval=1000 // FPS, blit=False)
+    ani.save(output_path, writer=animation.FFMpegWriter(fps=FPS), dpi=DPI)
     plt.close(fig)
 
 
-def normalize_vectors(u, v, eps=1e-12):
-    mag = np.sqrt(u ** 2 + v ** 2)
-    u_norm = np.zeros_like(u, dtype=float)
-    v_norm = np.zeros_like(v, dtype=float)
-    np.divide(u, mag, out=u_norm, where=mag > eps)
-    np.divide(v, mag, out=v_norm, where=mag > eps)
-    return u_norm, v_norm
+def animate_fieldmag_with_circles(data, output_path="output/fieldmag_with_circles.mp4", heatmap=None):
+    if heatmap is None:
+        heatmap = make_heatmap_settings(mode="log", cmap="inferno", low=1, high=99)
+
+    field_mag = data["field_mag"]
+    n_frames, height, width = field_mag.shape
+    norm = make_norm(field_mag, heatmap)
+
+    ensure_output_dir(output_path)
+    fig, ax = plt.subplots(figsize=FIGSIZE)
+    im = draw_heatmap(ax, field_mag[0], norm, heatmap)
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label("|E|")
+
+    def update(frame_idx):
+        ax.clear()
+        setup_axes(ax, width, height, "Electric Field Magnitude + Circles vs Time")
+        draw_heatmap(ax, field_mag[frame_idx], norm, heatmap)
+        draw_electrodes(ax, data.get("electrodes", []))
+        draw_all_circles(ax, data, frame_idx)
+        add_frame_label(ax, frame_idx, extra_text=f"{heatmap['mode']} [{heatmap['low']}, {heatmap['high']}]")
+        return []
+
+    ani = animation.FuncAnimation(fig, update, frames=n_frames, interval=1000 // FPS, blit=False)
+    ani.save(output_path, writer=animation.FFMpegWriter(fps=FPS), dpi=DPI)
+    plt.close(fig)
 
 
-def animate_field_quiver(data, output_path="output/efield_quiver_animation.mp4",
-                         stride=20, normalize=True, overlay_field_mag=True,
-                         fieldmag_cmap="gray", fieldmag_alpha=0.45,
-                         fieldmag_norm_mode="log"):
+def animate_field_quiver(data, output_path="output/efield_quiver_animation.mp4", stride=20,
+                         normalize=True, background_heatmap=None):
+    if background_heatmap is None:
+        background_heatmap = make_heatmap_settings(mode="log", cmap="gray", low=5, high=95, alpha=0.25)
+
     field_x = data["field_x"]
     field_y = data["field_y"]
     n_frames, height, width = field_x.shape
     y, x = np.mgrid[0:height:stride, 0:width:stride]
+    bg_norm = make_norm(data["field_mag"], background_heatmap) if "field_mag" in data else None
 
     def draw(ax, frame_idx):
         setup_axes(ax, width, height, "Electric Field Quiver vs Time")
 
-        if overlay_field_mag and "field_mag" in data:
-            stack = data["field_mag"]
-            norm, vmin, vmax = get_scalar_norm(stack, mode=fieldmag_norm_mode)
-            im_kwargs = {
-                "origin": "lower",
-                "aspect": "auto",
-                "cmap": fieldmag_cmap,
-                "alpha": fieldmag_alpha,
-            }
-            if norm is not None:
-                im_kwargs["norm"] = norm
-            else:
-                im_kwargs["vmin"] = vmin
-                im_kwargs["vmax"] = vmax
-            ax.imshow(stack[frame_idx], **im_kwargs)
+        if "field_mag" in data:
+            draw_heatmap(ax, data["field_mag"][frame_idx], bg_norm, background_heatmap)
 
         draw_electrodes(ax, data.get("electrodes", []))
 
         u = field_x[frame_idx, ::stride, ::stride]
         v = field_y[frame_idx, ::stride, ::stride]
         if normalize:
-            u, v = normalize_vectors(u, v)
+            mag = np.sqrt(u ** 2 + v ** 2)
+            u = np.divide(u, mag, out=np.zeros_like(u), where=mag > 1e-12)
+            v = np.divide(v, mag, out=np.zeros_like(v), where=mag > 1e-12)
 
         ax.quiver(
             x, y, u, v,
             angles="xy",
             scale_units="xy",
-            scale=0.07 if normalize else None,
+            scale=0.075 if normalize else None,
             pivot="mid",
-            width=0.0025,
-            color="white" if overlay_field_mag else None,
+            width=0.0028,
+            color="deepskyblue",
+            alpha=0.95,
+            zorder=3,
         )
 
-        draw_circle_overlay(ax, data, frame_idx)
-        add_frame_label(ax, frame_idx, color="white")
-        return []
+        draw_all_circles(ax, data, frame_idx)
+        add_frame_label(ax, frame_idx, extra_text=f"bg {background_heatmap['mode']} [{background_heatmap['low']}, {background_heatmap['high']}]")
 
-    animate_redraw(draw, n_frames=n_frames, output_path=output_path)
-
-
-def plot_field_lines_frame(data, frame_idx=0,
-                           output_path="output/field_lines_frame.png",
-                           density=1.2, cmap="viridis", overlay_field_mag=True):
-    ensure_output_dir(output_path)
-    field_x = data["field_x"][frame_idx]
-    field_y = data["field_y"][frame_idx]
-    height, width = field_x.shape
-
-    x = np.arange(0, width)
-    y = np.arange(0, height)
-
-    fig, ax = plt.subplots(figsize=FIGSIZE)
-    setup_axes(ax, width, height, f"Electric Field Lines (Frame {frame_idx})")
-
-    if overlay_field_mag and "field_mag" in data:
-        draw_scalar_field(
-            ax,
-            data["field_mag"][frame_idx],
-            title=f"Electric Field Lines (Frame {frame_idx})",
-            cmap="magma",
-            norm_mode="log",
-            reference_stack=data["field_mag"],
-            colorbar_label="|E|",
-        )
-
-    draw_electrodes(ax, data.get("electrodes", []))
-    ax.streamplot(x, y, field_x, field_y, density=density, linewidth=0.8, arrowsize=0.8, color="white")
-    draw_circle_overlay(ax, data, frame_idx)
-    add_frame_label(ax, frame_idx, color="white")
-
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=DPI)
-    plt.close(fig)
+    save_animation(draw, n_frames, output_path)
 
 
-# NOTE:
-# Animated streamplot is intentionally implemented with full axes redraw every frame.
-# This avoids the fragile artist-removal path that often breaks saving.
+def animate_field_lines(data, output_path="output/field_lines_animation.mp4", density=1.0,
+                        background_heatmap=None):
+    if background_heatmap is None:
+        background_heatmap = make_heatmap_settings(mode="log", cmap="magma", low=1, high=99, alpha=0.70)
 
-def animate_field_lines(data, output_path="output/field_lines_animation.mp4",
-                        density=1.0, overlay_field_mag=True):
     field_x = data["field_x"]
     field_y = data["field_y"]
     n_frames, height, width = field_x.shape
     x = np.arange(0, width)
     y = np.arange(0, height)
+    bg_norm = make_norm(data["field_mag"], background_heatmap) if "field_mag" in data else None
 
     def draw(ax, frame_idx):
         setup_axes(ax, width, height, "Electric Field Lines vs Time")
 
-        if overlay_field_mag and "field_mag" in data:
-            stack = data["field_mag"]
-            norm, vmin, vmax = get_scalar_norm(stack, mode="log")
-            im_kwargs = {
-                "origin": "lower",
-                "aspect": "auto",
-                "cmap": "magma",
-                "alpha": 0.9,
-            }
-            if norm is not None:
-                im_kwargs["norm"] = norm
-            else:
-                im_kwargs["vmin"] = vmin
-                im_kwargs["vmax"] = vmax
-            ax.imshow(stack[frame_idx], **im_kwargs)
-            line_color = "white"
-        else:
-            line_color = None
+        if "field_mag" in data and background_heatmap is not None:
+            draw_heatmap(ax, data["field_mag"][frame_idx], bg_norm, background_heatmap)
 
         draw_electrodes(ax, data.get("electrodes", []))
         ax.streamplot(
-            x,
-            y,
-            field_x[frame_idx],
-            field_y[frame_idx],
+            x, y,
+            field_x[frame_idx], field_y[frame_idx],
             density=density,
             linewidth=0.8,
             arrowsize=0.8,
-            color=line_color,
+            color="white",
+            zorder=3,
         )
-        draw_circle_overlay(ax, data, frame_idx)
-        add_frame_label(ax, frame_idx, color="white")
-        return []
+        draw_all_circles(ax, data, frame_idx)
+        label = None if background_heatmap is None else f"bg {background_heatmap['mode']} [{background_heatmap['low']}, {background_heatmap['high']}]"
+        add_frame_label(ax, frame_idx, extra_text=label)
 
-    animate_redraw(draw, n_frames=n_frames, output_path=output_path)
+    save_animation(draw, n_frames, output_path)
+
+
+def plot_fieldmag_frame(data, frame_idx=-1, output_path="output/fieldmag_frame.png", heatmap=None):
+    if heatmap is None:
+        heatmap = make_heatmap_settings(mode="log", cmap="inferno", low=1, high=99)
+
+    ensure_output_dir(output_path)
+    field_mag = data["field_mag"]
+    n_frames = field_mag.shape[0]
+    if frame_idx < 0:
+        frame_idx = n_frames + frame_idx
+
+    norm = make_norm(field_mag, heatmap)
+
+    fig, ax = plt.subplots(figsize=FIGSIZE)
+    setup_axes(ax, data["width"], data["height"], "Electric Field Magnitude + Circles")
+    im = draw_heatmap(ax, field_mag[frame_idx], norm, heatmap)
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label("|E|")
+    draw_electrodes(ax, data.get("electrodes", []))
+    draw_all_circles(ax, data, frame_idx)
+    add_frame_label(ax, frame_idx, extra_text=f"{heatmap['mode']} [{heatmap['low']}, {heatmap['high']}]")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=DPI)
+    plt.close(fig)
 
 
 def plot_resistance_vs_time(data, output_path="output/resistance_vs_time.png"):
@@ -618,7 +476,6 @@ def split_relax_runs(relax_iterations, relax_error):
             runs.append((current_iters, current_errs))
             current_iters = []
             current_errs = []
-
         current_iters.append(it)
         current_errs.append(err)
         prev_iter = it
@@ -661,18 +518,26 @@ def plot_relax_error_decay(data, output_path="output/relax_error_decay.png", max
 def main():
     data = load_sim_data(DATA_PATH)
 
-    # Static diagnostics
-    plot_fieldmag_frame(data, frame_idx=-1, output_path=OUTPUT_DIR / "fieldmag_last_frame.png")
-    plot_field_lines_frame(data, frame_idx=0, output_path=OUTPUT_DIR / "field_lines_frame0.png")
+    # Heatmap presets you can tune directly.
+    potential_map = make_heatmap_settings(mode="full", cmap="coolwarm")
+    field_low = make_heatmap_settings(mode="log", cmap="inferno", low=1, high=99, alpha=1.0)
+    field_high = make_heatmap_settings(mode="percentile", cmap="inferno", low=10, high=99.5, alpha=1.0)
+    quiver_bg = make_heatmap_settings(mode="log", cmap="gray", low=5, high=95, alpha=0.25)
+    lines_bg = make_heatmap_settings(mode="log", cmap="magma", low=1, high=99, alpha=0.70)
+
+    plot_fieldmag_frame(data, frame_idx=-1, output_path=OUTPUT_DIR / "fieldmag_last_frame_low.png", heatmap=field_low)
+    plot_fieldmag_frame(data, frame_idx=-1, output_path=OUTPUT_DIR / "fieldmag_last_frame_high.png", heatmap=field_high)
     plot_relax_error_decay(data, output_path=OUTPUT_DIR / "relax_error_decay.png")
     plot_resistance_vs_time(data, output_path=OUTPUT_DIR / "resistance_vs_time.png")
 
-    # Animations
     animate_circles(data, output_path=OUTPUT_DIR / "circles_animation.mp4")
-    animate_potential(data, output_path=OUTPUT_DIR / "potential_animation.mp4")
-    animate_fieldmag_with_circles(data, output_path=OUTPUT_DIR / "fieldmag_with_circles.mp4")
-    animate_field_quiver(data, output_path=OUTPUT_DIR / "efield_quiver_animation.mp4", stride=20)
-    animate_field_lines(data, output_path=OUTPUT_DIR / "field_lines_animation.mp4", density=1.0)
+    animate_potential(data, output_path=OUTPUT_DIR / "potential_animation.mp4", heatmap=potential_map)
+    animate_fieldmag_with_circles(data, output_path=OUTPUT_DIR / "fieldmag_with_circles_low.mp4", heatmap=field_low)
+    animate_fieldmag_with_circles(data, output_path=OUTPUT_DIR / "fieldmag_with_circles_high.mp4", heatmap=field_high)
+    animate_field_quiver(data, output_path=OUTPUT_DIR / "efield_quiver_animation.mp4", stride=20,
+                         normalize=True, background_heatmap=quiver_bg)
+    animate_field_lines(data, output_path=OUTPUT_DIR / "field_lines_animation.mp4", density=1.0,
+                        background_heatmap=lines_bg)
 
 
 if __name__ == "__main__":
