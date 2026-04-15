@@ -51,22 +51,23 @@ def load_sim_data(path: Path):
     return out
 
 
+# If there is a figure ax then it will draw the electrodes onto it
 def draw_electrodes(ax, electrodes):
     patches = []
     line_artists = []
 
-    for e in electrodes:
-        shape = e["shape"]
+    for elec in electrodes:
+        shape = elec["shape"]
 
         if shape == "triangle":
-            pts = np.array([e["v1"], e["v2"], e["v3"]], dtype=float)
+            pts = np.array([elec["v1"], elec["v2"], elec["v3"]], dtype=float)
             poly = Polygon(pts, closed=True, fill=False, linewidth=2.0)
             ax.add_patch(poly)
             patches.append(poly)
 
         elif shape == "rectangle":
-            pos = e["position"]
-            size = e["size"]
+            pos = elec["position"]
+            size = elec["size"]
             rect = Rectangle(
                 xy=(pos[0], pos[1]),
                 width=size[0],
@@ -77,11 +78,12 @@ def draw_electrodes(ax, electrodes):
             ax.add_patch(rect)
             patches.append(rect)
 
+        # Reminder: Needle positions arent stored, so we have to rasterize them here
         elif shape == "needle":
-            v1 = np.array(e["v1"], dtype=float)
-            v2 = np.array(e["v2"], dtype=float)
-            v3 = np.array(e["v3"], dtype=float)
-            cp = np.array(e["cp"], dtype=float)
+            v1 = np.array(elec["v1"], dtype=float)
+            v2 = np.array(elec["v2"], dtype=float)
+            v3 = np.array(elec["v3"], dtype=float)
+            cp = np.array(elec["cp"], dtype=float)
 
             t = np.linspace(0.0, 1.0, 200)
 
@@ -232,7 +234,6 @@ def animate_field_quiver(data, output_path="output/efield_quiver_animation.mp4",
     electrodes = data.get("electrodes", [])
 
     n_frames, height, width = field_x.shape
-
     y, x = np.mgrid[0:height:stride, 0:width:stride]
 
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -247,13 +248,10 @@ def animate_field_quiver(data, output_path="output/efield_quiver_animation.mp4",
 
     def normalize(u, v, eps=1e-12):
         mag = np.sqrt(u**2 + v**2)
-
         u_norm = np.zeros_like(u, dtype=float)
         v_norm = np.zeros_like(v, dtype=float)
-
         np.divide(u, mag, out=u_norm, where=mag > eps)
         np.divide(v, mag, out=v_norm, where=mag > eps)
-
         return u_norm, v_norm
 
     u0 = field_x[0, ::stride, ::stride]
@@ -264,24 +262,35 @@ def animate_field_quiver(data, output_path="output/efield_quiver_animation.mp4",
         x, y, u0, v0,
         angles="xy",
         scale_units="xy",
-        scale=0.07,      # smaller scale = longer arrows
+        scale=0.07,
         pivot="mid",
         width=0.0025
     )
+
+    dynamic_patches = []
 
     title = ax.text(
         0.02, 0.98, "", transform=ax.transAxes,
         ha="left", va="top"
     )
 
+    def clear_dynamic():
+        nonlocal dynamic_patches
+        for p in dynamic_patches:
+            p.remove()
+        dynamic_patches = []
+
     def update(frame_idx):
         u = field_x[frame_idx, ::stride, ::stride]
         v = field_y[frame_idx, ::stride, ::stride]
         u, v = normalize(u, v)
-
         q.set_UVC(u, v)
+
+        clear_dynamic()
+        draw_all_circles_for_frame(ax, dynamic_patches, data, frame_idx)
+
         title.set_text(f"Frame {frame_idx}")
-        return [q, title]
+        return [q, title] + dynamic_patches
 
     ani = animation.FuncAnimation(
         fig, update, frames=n_frames, interval=1000 // FPS, blit=False
@@ -412,13 +421,211 @@ def animate_field_quiver_unnormalized(data, output_path="output/efield_quiver_an
     ani.save(output_path, writer=animation.FFMpegWriter(fps=FPS))
     plt.close(fig)
 
+
+def add_circle_patch(ax, dynamic_patches, circle_dict, linestyle="-", linewidth=1.5):
+    e = Ellipse(
+        xy=(circle_dict["x"], circle_dict["y"]),
+        width=2 * circle_dict["a"],
+        height=2 * circle_dict["b"],
+        fill=False,
+        linewidth=linewidth,
+        linestyle=linestyle,
+    )
+    ax.add_patch(e)
+    dynamic_patches.append(e)
+
+
+def draw_all_circles_for_frame(ax, dynamic_patches, data, frame_idx):
+    moving = data["moving_circles"]
+    static = data["static_circles"]
+    moving_chains = data.get("moving_chains", [])
+    static_chains = data.get("static_chains", [])
+
+    for c in moving[frame_idx]:
+        add_circle_patch(ax, dynamic_patches, c, linestyle="-", linewidth=1.5)
+
+    for c in static[frame_idx]:
+        add_circle_patch(ax, dynamic_patches, c, linestyle="--", linewidth=2.0)
+
+    for chain in moving_chains[frame_idx]:
+        for member in chain["members"]:
+            add_circle_patch(ax, dynamic_patches, member, linestyle="-", linewidth=1.5)
+
+    for chain in static_chains[frame_idx]:
+        for member in chain["members"]:
+            add_circle_patch(ax, dynamic_patches, member, linestyle="--", linewidth=2.0)
+
+
+def animate_fieldmag_with_circles(data, output_path="output/fieldmag_with_circles.mp4"):
+    field_mag = data["field_mag"]
+    electrodes = data.get("electrodes", [])
+    n_frames, height, width = field_mag.shape
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect("equal")
+    ax.set_title("Field Magnitude + Circles vs Time")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+
+    vmin = np.min(field_mag)
+    vmax = np.max(field_mag)
+
+    im = ax.imshow(
+        field_mag[0],
+        origin="lower",
+        aspect="auto",
+        vmin=vmin,
+        vmax=vmax,
+    )
+    fig.colorbar(im, ax=ax, label="|E|")
+
+    draw_electrodes(ax, electrodes)
+
+    dynamic_patches = []
+    title = ax.text(
+        0.02, 0.98, "", transform=ax.transAxes,
+        ha="left", va="top", color="white"
+    )
+
+    def clear_dynamic():
+        nonlocal dynamic_patches
+        for p in dynamic_patches:
+            p.remove()
+        dynamic_patches = []
+
+    def update(frame_idx):
+        clear_dynamic()
+        im.set_data(field_mag[frame_idx])
+        draw_all_circles_for_frame(ax, dynamic_patches, data, frame_idx)
+        title.set_text(f"Frame {frame_idx}")
+        return [im, title] + dynamic_patches
+
+    ani = animation.FuncAnimation(
+        fig, update, frames=n_frames, interval=1000 // FPS, blit=False
+    )
+    ani.save(output_path, writer=animation.FFMpegWriter(fps=FPS))
+    plt.close(fig)
+
+
+def plot_field_lines_frame0(data, output_path="output/field_lines_frame0.png", stride=4):
+    field_x = data["field_x"][0]
+    field_y = data["field_y"][0]
+    electrodes = data.get("electrodes", [])
+
+    height, width = field_x.shape
+
+    x = np.arange(0, width)
+    y = np.arange(0, height)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect("equal")
+    ax.set_title("Electric Field Lines (Frame 0)")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+
+    draw_electrodes(ax, electrodes)
+
+    ax.streamplot(
+        x, y,
+        field_x, field_y,
+        density=1.2,
+        linewidth=0.8,
+        arrowsize=0.8
+    )
+
+    dynamic_patches = []
+    draw_all_circles_for_frame(ax, dynamic_patches, data, 0)
+
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+def animate_field_lines(data, output_path="output/field_lines_animation.mp4"):
+    field_x = data["field_x"]
+    field_y = data["field_y"]
+    electrodes = data.get("electrodes", [])
+
+    n_frames, height, width = field_x.shape
+    x = np.arange(0, width)
+    y = np.arange(0, height)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect("equal")
+    ax.set_title("Electric Field Lines vs Time")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+
+    draw_electrodes(ax, electrodes)
+
+    title = ax.text(
+        0.02, 0.98, "", transform=ax.transAxes,
+        ha="left", va="top"
+    )
+
+    dynamic_patches = []
+    stream_container = {"lines": None, "arrows": None}
+
+    def clear_dynamic():
+        nonlocal dynamic_patches
+        for p in dynamic_patches:
+            p.remove()
+        dynamic_patches = []
+
+        if stream_container["lines"] is not None:
+            stream_container["lines"].remove()
+            stream_container["lines"] = None
+
+        if stream_container["arrows"] is not None:
+            stream_container["arrows"].remove()
+            stream_container["arrows"] = None
+
+    def update(frame_idx):
+        clear_dynamic()
+
+        sp = ax.streamplot(
+            x, y,
+            field_x[frame_idx],
+            field_y[frame_idx],
+            density=1.2,
+            linewidth=0.8,
+            arrowsize=0.8
+        )
+
+        stream_container["lines"] = sp.lines
+        stream_container["arrows"] = sp.arrows
+
+        draw_all_circles_for_frame(ax, dynamic_patches, data, frame_idx)
+        title.set_text(f"Frame {frame_idx}")
+
+        return [title] + dynamic_patches
+
+    ani = animation.FuncAnimation(
+        fig, update, frames=n_frames, interval=1000 // FPS, blit=False
+    )
+    ani.save(output_path, writer=animation.FFMpegWriter(fps=FPS))
+    plt.close(fig)
+
+
 def main():
     data = load_sim_data(DATA_PATH)
 
     # animate_circles(data)
     # animate_potential(data)
+
+    # animate_fieldmag_with_circles(data)
     animate_field_quiver(data, stride=20)
     # animate_field_quiver_unnormalized(data, stride=25)
+
+    
+    # plot_field_lines_frame0(data)
+    animate_field_lines(data)
+
     # plot_relax_error_decay(data)
     # plot_resistance_vs_time(data)
 
