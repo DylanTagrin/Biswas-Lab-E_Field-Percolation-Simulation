@@ -5,6 +5,7 @@
 #include <limits>
 #include <type_traits>
 #include <chrono>
+#include <random>
 
 //#include "gsl/gsl_integration.h"
 //#include "gsl/gsl_sf.h"
@@ -15,6 +16,7 @@
 #include "Headers/Collisions.h"
 #include "Headers/DataHandler.h"
 #include "Grid.h"
+
 
 /*This file is the main simulation engine and has a lot going on with it.*/
 
@@ -1688,6 +1690,99 @@ public:
 
         return arr;
     }
+
+    // This function uses a seeded random number generator to place circles randomly on the grid.
+    int AddRandomCirclesSeeded(int count, int a, int b, unsigned int seed) {
+        // Initialize random number generator with seed
+        std::mt19937 rng(seed);
+        auto size = relaxed_grid.GetSize();
+        // Establish range for random circle placement (accounting for radius to avoid out-of-bounds)
+        std::uniform_int_distribution<int> dist_x(a, size.x - a - 1);
+        std::uniform_int_distribution<int> dist_y(b, size.y - b - 1);
+
+        int placed = 0;
+        int attempts = 0;
+        int max_attempts = 50000;
+        // Loop until we've placed the desired number of circles or reached max attempts
+        while (placed < count && attempts < max_attempts) {
+            attempts++;
+            // Make circle c with random position and given a, b, this also gives us access to circle functions
+            Circle c({ dist_x(rng), dist_y(rng) }, a, b);
+
+            // Check overlap with all other circles in the cirlces container
+            bool overlap = false;
+            for (const auto& other : circles) {
+                if (CircleVsCircle(c, other) || CircleVsCircle(other, c)) {
+                    overlap = true;
+                    break;
+                }
+            }
+            // Rather than break the whole loop, use continue to skip to the next iteration
+            if (overlap) continue;
+
+            // Check electrode exclusion
+            // Only check the electrode type you're using
+            if (electrode == 0) { // TRIANGLE
+                for (const auto& tri : triangles) {
+                    for (int x = c.position.x - a; x <= c.position.x + a; ++x) {
+                        for (int y = c.position.y - b; y <= c.position.y + b; ++y) {
+                            V2<int> p{ x, y };
+                            if (PointVsCircle(p, c) && InTriangle(tri, p)) {
+                                overlap = true;
+                                break;
+                            }
+                        }
+                        if (overlap) break;
+                    }
+                    if (overlap) break;
+                }
+            }
+
+            else if (electrode == 1) { // NEEDLE 
+                for (const auto& needle : needles) {
+                    Triangle blocked_region{ needle.v1, needle.v2, needle.v3, needle.value };
+
+                    for (int x = c.position.x - a; x <= c.position.x + a; ++x) {
+                        for (int y = c.position.y - b; y <= c.position.y + b; ++y) {
+                            V2<int> p{ x, y };
+                            if (PointVsCircle(p, c) && InTriangle(blocked_region, p)) {
+                                overlap = true;
+                                break;
+                            }
+                        }
+                        if (overlap) break;
+                    }
+                    if (overlap) break;
+                }
+            }
+
+            else if (electrode == 2) { // RECTANGLE
+                for (const auto& rect : rectangles) {
+                    for (int x = c.position.x - a; x <= c.position.x + a; ++x) {
+                        for (int y = c.position.y - b; y <= c.position.y + b; ++y) {
+                            V2<int> p{ x, y };
+                            if (PointVsCircle(p, c) && PointVsRectangle(p, rect)) {
+                                overlap = true;
+                                break;
+                            }
+                        }
+                        if (overlap) break;
+                    }
+                    if (overlap) break;
+                }
+            }
+
+            if (overlap) continue;
+            // Finally, if there's no overlap, add the circle to the container or circles
+            AddCircle(c);
+            placed++;
+        }
+
+        LOG("Placed " << placed << " circles (requested " << count << ")");
+        return placed;
+    }
+
+
 
 
 
