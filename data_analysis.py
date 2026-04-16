@@ -526,8 +526,8 @@ def main():
     lines_bg = make_heatmap_settings(mode="percentile", cmap="magma", low=0.1, high=99, alpha=0.80)
 
     # plot_fieldmag_frame(data, frame_idx=-1, output_path=OUTPUT_DIR / "fieldmag_last_frame_low.png", heatmap=field_low)
-    # plot_fieldmag_frame(data, frame_idx=-1, output_path=OUTPUT_DIR / "fieldmag_last_frame_high.png", heatmap=field_high)
-    # plot_relax_error_decay(data, output_path=OUTPUT_DIR / "relax_error_decay.png")
+    plot_fieldmag_frame(data, frame_idx=-1, output_path=OUTPUT_DIR / "fieldmag_last_frame_high.png", heatmap=field_high)
+    plot_relax_error_decay(data, output_path=OUTPUT_DIR / "relax_error_decay.png")
     # plot_resistance_vs_time(data, output_path=OUTPUT_DIR / "resistance_vs_time.png")
 
     animate_circles(data, output_path=OUTPUT_DIR / "circles_animation.mp4")

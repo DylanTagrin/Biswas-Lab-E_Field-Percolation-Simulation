@@ -1692,7 +1692,7 @@ public:
     }
 
     // This function uses a seeded random number generator to place circles randomly on the grid.
-    int AddRandomCirclesSeeded(int count, int a, int b, unsigned int seed) {
+    int AddRandomCirclesSeeded(int count, int a, int b, unsigned int seed, int use_gaussian = 0) {
         // Initialize random number generator with seed
         std::mt19937 rng(seed);
         auto size = relaxed_grid.GetSize();
@@ -1700,14 +1700,30 @@ public:
         std::uniform_int_distribution<int> dist_x(a, size.x - a - 1);
         std::uniform_int_distribution<int> dist_y(b, size.y - b - 1);
 
+        std::normal_distribution<double> gauss_x(size.x / 2.0, size.x / 6.0);
+        std::normal_distribution<double> gauss_y(size.y / 2.0, size.y / 6.0);
+
         int placed = 0;
         int attempts = 0;
         int max_attempts = 50000;
         // Loop until we've placed the desired number of circles or reached max attempts
         while (placed < count && attempts < max_attempts) {
             attempts++;
+            int x = 0, y = 0;
+            if (use_gaussian == 0) {
+                x = dist_x(rng);
+                y = dist_y(rng);
+            } else {
+                x = static_cast<int>(std::round(gauss_x(rng)));
+                y = static_cast<int>(std::round(gauss_y(rng)));
+
+                // Clamp to valid region
+                x = std::max(a, std::min(x, size.x - a - 1));
+                y = std::max(b, std::min(y, size.y - b - 1));
+            }
+
             // Make circle c with random position and given a, b, this also gives us access to circle functions
-            Circle c({ dist_x(rng), dist_y(rng) }, a, b);
+            Circle c({ x, y }, a, b);
 
             // Check overlap with all other circles in the cirlces container
             bool overlap = false;

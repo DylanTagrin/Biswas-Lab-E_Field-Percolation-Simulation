@@ -17,6 +17,7 @@ int main() {
     int circle_a = 15;
     int circle_b = 15;
     unsigned int seed = 0;
+    int use_gaussian = 0;
 
 
     // Short dialogue tree to get simulation inputs from the user
@@ -48,40 +49,10 @@ int main() {
     LOG_("What should the relative error we should check be? Recommended is 0.00001. Input a double: ");
     std::cin >> error;
 
-    // At this point we'll split between express mode simulation and custom imputs.
-    LOG("would you like to run this simulation in express mode with preset parameters (0) or input your own parameters? (1)");
-    LOG_("Please input 0 for express mode or 1 for custom parameters: ");
-    std::cin >> mode;
-    if (mode == 0) {
-        LOG("You have selected express mode.");
-    }
-    if (mode == 1) {
-        LOG("You have selected custom parameters.");
-        LOG("How many circles would you like to simulate?");
-        LOG_("Input the number of circles to be simulated: ");
-        std::cin >> numer_of_circles;
-        LOG("Next, what should the a and b parameters of the circles be? (Input two integers)");
-        LOG("Note: a is the horizontal radius and b is the vertical radius. Recommended is 15 for both.");
-        LOG_("Input a and b: ");
-        std::cin >> circle_a >> circle_b;
-        LOG("What seed would you like to use for the random number generator for circle placement? Input an unsigned integer. Recommended is 0.");
-        LOG_("Input seed: ");
-        std::cin >> seed;
-        LOG("How often should the simulaiton check the relative error during relaxation?");
-        LOG_("Input the number of loops between error checks: ");
-        std::cin >> check_every;
-    } 
-
-
-    
-    // Initialize Simulation with grid size (800, 600)
+    // Predefine simulation so that the intellisense is happy
     Simulation sim(V2<int>{ 800, 600 }, electrode_type);
 
-    if (mode == 1) {
-        sim.AddRandomCirclesSeeded(numer_of_circles, circle_a, circle_b, seed);
-    }
-
-
+    // Further note, electrodes must be placed first before the needle
 
     // WARNING: IF DIFFERENT SHAPE IS USED (I.E. NEEDLE VS TRIANGLE VS RECTANGLE), CODE WILL HAVE TO BE ADAPTED IN Simulation.h (and other
     // header files.
@@ -99,6 +70,36 @@ int main() {
 
     //sim.AddRectangle(Rectangle({ 0, 150 }, { 250, 300 }, 50));
     //sim.AddRectangle(Rectangle({ 550, 150 }, { 250, 300 }, -50));
+
+
+
+    // At this point we'll split between express mode simulation and custom imputs.
+    LOG("would you like to run this simulation in express mode with preset parameters (0) or input your own parameters? (1)");
+    LOG_("Please input 0 for express mode or 1 for custom parameters: ");
+    std::cin >> mode;
+    if (mode == 0) {
+        LOG("You have selected express mode.");
+    }
+    else if (mode == 1) {
+        LOG("You have selected custom parameters.");
+        LOG("How many circles would you like to simulate?");
+        LOG_("Input the number of circles to be simulated: ");
+        std::cin >> numer_of_circles;
+        LOG("Next, what should the a and b parameters of the circles be? (Input two integers)");
+        LOG("Note: a is the horizontal radius and b is the vertical radius. Recommended is 15 for both.");
+        LOG_("Input a and b: ");
+        std::cin >> circle_a >> circle_b;
+        LOG("What seed would you like to use for the random number generator for circle placement? Input an unsigned integer. Recommended is 0.");
+        LOG_("Input seed: ");
+        std::cin >> seed;
+        LOG("Would you like to use a Gaussian distribution for circle placement instead of a uniform distribution? (0 for no, 1 for yes)");
+        LOG_("Input 0 for no, 1 for yes: ");
+        std::cin >> use_gaussian;
+        sim.AddRandomCirclesSeeded(numer_of_circles, circle_a, circle_b, seed, use_gaussian);
+        LOG("How often should the simulaiton check the relative error during relaxation?");
+        LOG_("Input the number of loops between error checks: ");
+        std::cin >> check_every;
+    } 
 
 
     if (mode == 0) {
