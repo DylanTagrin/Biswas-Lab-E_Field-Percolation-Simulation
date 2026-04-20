@@ -9,3 +9,22 @@ when the cirlces move, indicating that it is a good measure of the difference in
 from where it is to where it should be. Some frames show a VERY large increase in the relative
 error, this corresponds to when the electric field around a circle increases greatly, leading to
 a circle moving over a significant distance, thus leading to another large change.
+
+If not enough relaxation loops are performed at minimum, then some interesting errors occur. In 
+short, the potential field doesnt dissipate fast enough if there's a large change, leading to a 
+large electric field gradient, leading to the circles moving in ways they shouldn't. From the 
+data analysis done so far, at least 200 loops is enough to make sure most errors dissipate.
+
+For a small set of circles the simulation behaves as expected, forming a bridge of circles towards 
+each electrode. For perfect circles however, when a large number of them are generated in a random 
+distribution they form lines tanget to the direct path between the two electrodes. This is primarily 
+due to a quirk within the simulation the freezes the circles after they collide with the electrode. 
+This behavior clashes with expectations drawn from experiments but may not be necessarily untrue.
+
+For measuresments that simulate applying a current along the magnetic easy axis, the circles were 
+elongated in that axis. In these measurements a bridge almost always forms between the two electrodes. 
+This corresponds highly with the expected behavior. 
+
+These sets of measurements reveal a need for the metallic regions to be able to break free to align 
+more closely to the "lines of metallic regions" that we see in MFM scans.
+

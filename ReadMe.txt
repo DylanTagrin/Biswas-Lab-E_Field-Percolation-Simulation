@@ -15,7 +15,10 @@ type of simulation you would like to perform.
 The terminal will display information regarding the simulation as it is running.
 Once the simulation is complete it will end with "Done!"
 Output data.json will be put into the output folder.
+
 Once the simulation is done, the data can be analyzed with data_analysis.py 
 Make sure whatever functions you want to run/data you want plotted are uncommented in the 
 final function __main__
-Data will plotted in the output directory, please move it out if you dont want it overwritten
+Data will plotted in the output directory, please move it out if you dont want it overwritten.
+
+gif_converter.py can be used to convert mp4s to a gif for presentations.

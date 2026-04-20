@@ -25,7 +25,13 @@ Added several functions to the analysis file that plots circle animation, efield
     resistance calculations are very bare right now)
 Fixed .gitignore file so mp4s and plots wont be pushed to github (was pushing 50 mb files before)
 
+04/16/2026:
+Added new framework for adding circles; AddRandomCirclesSeeded
+    Allows for any number of circles to be added to the simulation with a random distribution.
+Expanded dialogue tree to have express mode and custom variable mode
 
+04/17/2026:
+Added Gaussian distribution to the AddRandomCirclesSeeded function. 
 
 
 

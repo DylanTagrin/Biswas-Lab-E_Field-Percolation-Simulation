@@ -534,7 +534,7 @@ def main():
     animate_potential(data, output_path=OUTPUT_DIR / "potential_animation.mp4", heatmap=potential_map)
     animate_fieldmag_with_circles(data, output_path=OUTPUT_DIR / "fieldmag_with_circles_low.mp4", heatmap=field_low)
     animate_fieldmag_with_circles(data, output_path=OUTPUT_DIR / "fieldmag_with_circles_high.mp4", heatmap=field_high)
-    # animate_field_quiver(data, output_path=OUTPUT_DIR / "efield_quiver_animation.mp4", stride=20, normalize=True, background_heatmap=quiver_bg)
+    animate_field_quiver(data, output_path=OUTPUT_DIR / "efield_quiver_animation.mp4", stride=20, normalize=True, background_heatmap=quiver_bg)
     animate_field_lines(data, output_path=OUTPUT_DIR / "field_lines_animation.mp4", density=1.0, background_heatmap=lines_bg)
 
 

@@ -1,6 +1,6 @@
 from moviepy import VideoFileClip
 
-directory = "saved_data/Test4/"
+directory = "saved_data/Test8/"
 name = "field_lines_animation"
 
 # Load the MP4 file

@@ -50,3 +50,18 @@ it takes as few as 200 iterations to converge back to 0.00001 after reaching it 
 However there are periods where it takes 1000 - 2500 relaxation loops, meaning this method is 
 useful for ensuring that frames where a large change happens gets relaxed in a brisk amount of
 time. In other words and error of 0.00001 makes for a good test error.
+
+
+
+04/19/2026
+
+Analysis of simulations with very large amounts of circles (~50):
+
+Unfortunately, the large jump in the change in potential due to each circle moving leads to the 
+change in potential across the grid being so large, that until they stop moving, something that 
+can take well over 60 frames, the relative error spikes immensely. Propagation of these effects are 
+also widespread which means we have to have a large minimum relaxation cycles regardless. Using a 
+large amount of circles also makes it quite notable how long the collision calculations are. 
+This leads me to assert that we should first improve the collision calculation, as I don't think 
+there is much that can be done about the relaxation calcuation to improve it further. Simulations 
+in this category can easy reach 6-14 hours.
