@@ -26,8 +26,6 @@ int main() {
     LOG("How many frames would you like to compute?");
     LOG_("Please input an integer: ");
     std::cin >> frames;
-    LOG_("Input the max number of relaxation loops: "); 
-    std::cin >> loops;
     LOG("What shape Electrodes would you like to use? Please input an integer. Note: Currently only the needle electrode works."); 
     LOG_("(0) for triangle, (1) for needle, (2) for rectangle: ");
     std::cin >> electrode_type;
@@ -44,10 +42,10 @@ int main() {
         LOG("Invalid input, defaulting to triangle electrodes.");
         electrode_type = 0;
     }
-    LOG_("What should the min loops per relaxation run be? ");
-    std::cin >> min_loops;
-    LOG_("What should the relative error we should check be? Recommended is 0.00001. Input a double: ");
-    std::cin >> error;
+    // At this point we'll split between express mode simulation and custom imputs.
+    LOG("would you like to run this simulation in express mode with preset parameters (0) or input your own parameters? (1)");
+    LOG_("Please input 0 for express mode or 1 for custom parameters: ");
+    std::cin >> mode;
 
     // Predefine simulation so that the intellisense is happy
     Simulation sim(V2<int>{ 800, 600 }, electrode_type);
@@ -72,17 +70,16 @@ int main() {
     //sim.AddRectangle(Rectangle({ 550, 150 }, { 250, 300 }, -50));
 
 
-
-    // At this point we'll split between express mode simulation and custom imputs.
-    LOG("would you like to run this simulation in express mode with preset parameters (0) or input your own parameters? (1)");
-    LOG_("Please input 0 for express mode or 1 for custom parameters: ");
-    std::cin >> mode;
-    if (mode == 0) {
-        LOG("You have selected express mode.");
-    }
-    else if (mode == 1) {
+    if (mode == 1) {
         LOG("You have selected custom parameters.");
-        LOG("How many circles would you like to simulate?");
+        LOG_("Input the max number of relaxation loops: "); 
+        std::cin >> loops;
+        LOG_("What should the min loops per relaxation run be? ");
+        std::cin >> min_loops;
+        LOG_("What should the relative error we should check be? Recommended is 0.0001. Input a double: ");
+        std::cin >> error;
+        LOG_("Input the number of loops between error checks: ");
+        std::cin >> check_every;
         LOG_("Input the number of circles to be simulated: ");
         std::cin >> numer_of_circles;
         LOG("Next, what should the a and b parameters of the circles be? (Input two integers)");
@@ -97,12 +94,14 @@ int main() {
         std::cin >> use_gaussian;
         sim.AddRandomCirclesSeeded(numer_of_circles, circle_a, circle_b, seed, use_gaussian);
         LOG("How often should the simulaiton check the relative error during relaxation?");
-        LOG_("Input the number of loops between error checks: ");
-        std::cin >> check_every;
     } 
 
 
     if (mode == 0) {
+        LOG("You have selected express mode.");
+        loops = 5000;
+        min_loops = 400;
+        error = 0.0001;
         sim.AddCircle(Circle({ 349, 309 }, 15, 15));
         sim.AddCircle(Circle({ 449, 294 }, 15, 15));
         sim.AddCircle(Circle({ 439, 334 }, 15, 15));
